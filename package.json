@@ -1,6 +1,6 @@
 {
   "name": "@parthmax/flow-mcp",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "Unofficial MCP server that lets AI assistants use Google Flow (images, Veo and Omni video, upscaling) through your own signed-in Chrome. Not affiliated with Google.",
   "keywords": [
     "mcp",
