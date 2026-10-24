@@ -1,237 +1,143 @@
-# flow-mcp
+# flow-mcp 🎬 — Google Flow MCP server for Claude, Cursor and VS Code
 
-`npm: @parthmax/flow-mcp`
+<p align="center">
+  <img src="assets/main.webp" alt="flow-mcp: Claude makes images and videos with Google Flow. Your idea goes to Claude, then flow-mcp, then Google Flow" width="100%">
+</p>
 
-An MCP server that lets AI assistants (Claude Code, Cursor, VS Code, Claude Desktop) use
-[Google Flow](https://flow.google.com): generate and edit images, make Veo and Omni videos, upscale, and
-work with Flow's creative agent. It drives the Flow website in a Chrome window signed in to **your own**
-Google account, so it uses your Flow plan and credits. There is no API key and nothing runs on a server.
+<p align="center">
+  <a href="https://www.npmjs.com/package/@parthmax/flow-mcp"><img src="https://img.shields.io/npm/v/@parthmax/flow-mcp?style=flat-square&label=npm" alt="npm version"></a>  <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/@parthmax/flow-mcp?style=flat-square" alt="Node.js version"></a>
+  <a href="https://modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-server-7c3aed?style=flat-square" alt="MCP server"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT"></a>
+</p>
 
-> **Status: alpha.** It works end to end on Windows with an English-language Flow account.
-> This is an unofficial, independent project. It is not affiliated with, endorsed by or sponsored by
-> Google. Google and Google Flow are trademarks of Google LLC.
+flow-mcp is an open-source MCP server that lets your AI assistant make images and videos with
+[Google Flow](https://flow.google.com). Ask Claude Code, Cursor, VS Code or Claude Desktop in plain words
+and it generates and edits **Nano Banana** images, makes **Veo 3.1** and **Omni** videos, upscales to 2K,
+keeps a character consistent across shots, and works with Flow's creative agent.
 
-## Before you use it
+**Your account, your credits, no catch.** flow-mcp drives Flow in a Chrome window signed in to your own
+Google account, on your own computer. No API key, no server in between, no extra subscription. Images are
+free, and videos only run within the credit budget you set.
 
-- **Google's terms.** This automates the Flow website. Google may consider that against its terms and
-  could limit or block the account. Use it at your own risk, with an account you are prepared to risk,
-  at a human pace. It does not solve or bypass captchas or other protections.
-- **Uploads and rights.** When you upload a file, Flow asks you to confirm you hold the rights to it.
-  This tool only confirms that when you say so: per request (your assistant asks you), or once for all
-  your uploads if you choose that during `setup`. Only attach files you own or may use.
-- **Local control port.** The Chrome window this tool opens listens on `127.0.0.1:9222` so the server
-  can drive it. Any program running on your computer can reach that port and act as your signed-in
-  Google account. Do not run it on a shared or untrusted machine.
-- **Keep Flow in English.** Buttons are found by their English labels.
+[Getting started](docs/getting-started.md) · [Usage](docs/usage.md) · [Gallery](#made-with-flow-mcp) · [Capabilities](CAPABILITIES.md) · [Troubleshooting](docs/troubleshooting.md) · [Security](docs/security.md) · [npm](https://www.npmjs.com/package/@parthmax/flow-mcp)
 
-## Requirements
+<p align="center">
+  <img src="assets/demo.webp" alt="flow-mcp demo: an AI assistant asks Google Flow for an image of the Flo mascot in a neon film studio, animates it with Veo after Flow quotes 10 credits within the budget, then edits a lighthouse scene into a snowy winter night" width="100%">
+</p>
 
-- [Node.js](https://nodejs.org) 22 or newer
-- Google Chrome
-- A Google account that can open Flow. A free account works: it gets 50 Flow credits a day.
-- Windows is tested. macOS and Linux paths are written but untested.
+## Install
 
-## Easiest: ask your AI to set it up
-
-You need [Node.js](https://nodejs.org) 22+ and Google Chrome. Then paste this to Claude Code (or another
-assistant that can run commands):
-
-> Set up the Google Flow MCP server for me: run `npx -y @parthmax/flow-mcp setup --connect`. A Chrome
-> window will open; tell me to sign in to Google there. When it is done, tell me to restart you.
-
-The only thing you do is sign in to Google once in the window that opens. If you want uploads to confirm
-Flow's "I hold the rights" notice automatically (only if you upload just your own files), tell your
-assistant to add `--confirm-rights`. After a restart, ask for anything, e.g. *"make an image of a
-lighthouse at dusk"*. If you are ever signed out, your assistant opens the sign-in window again itself.
-
-## Setup
+You need [Node.js](https://nodejs.org) 22+ and Google Chrome. A free Google account works: it gets 50 Flow
+credits a day.
 
 ```bash
 npx -y @parthmax/flow-mcp setup
 ```
 
-That is all. It opens a Chrome window on Flow; sign in with the Google account to use. The session is
-kept in the state folder (`~/.flow-mcp` by default), so you only do this once. `setup` then asks whether
-uploads may confirm Flow's rights notice for you, offers to add itself to Claude Code, and prints the
-config for other clients. Restart your AI client afterwards.
+A Chrome window opens on Flow; sign in to Google once. `setup` then offers to connect Claude Code and
+install the flow-director skill, and prints the config for Cursor, VS Code and Claude Desktop. Restart
+your AI client afterwards.
 
-## Connect a client
+Or let your assistant do it. Paste this to Claude Code:
 
-`setup` does this for Claude Code if you let it. Otherwise, or for other clients:
+> Set up the Google Flow MCP server for me: run `npx -y @parthmax/flow-mcp setup --connect`. A Chrome
+> window will open; tell me to sign in to Google there. When it is done, tell me to restart you.
 
-**Claude Code**
+Client configs and running from source are in [Getting started](docs/getting-started.md).
 
-```bash
-claude mcp add flow-mcp --scope user -- npx -y @parthmax/flow-mcp serve
+## Quick start
+
+Ask your assistant:
+
+```text
+make an image of a lighthouse at dusk
+edit my photo C:\photos\me.jpg into a winter scene
+make an 8 second video of a paper boat, max 10 credits
 ```
 
-**Cursor** — `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project):
+A Chrome window shows Flow doing the job; leave it open. Files are saved to `~/.flow-mcp/output`. If
+something fails, `npx -y @parthmax/flow-mcp status` names the problem and the fix.
 
-```json
-{
-  "mcpServers": {
-    "flow-mcp": { "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
-  }
-}
-```
+## Made with flow-mcp
 
-**VS Code** — `.vscode/mcp.json` in the workspace, or the user `mcp.json`:
+Everything below was made by an AI assistant through flow-mcp, from one mascot reference. The images were
+free and the video cost 10 credits. Same character in every shot, thanks to a character sheet and Flow's
+references.
 
-```json
-{
-  "servers": {
-    "flow-mcp": { "type": "stdio", "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
-  }
-}
-```
+<table>
+  <tr>
+    <td colspan="2"><a href="assets/flo-action.mp4"><img src="assets/gallery/flo-action.webp" alt="Veo 3.1 video made with flow-mcp: Flo the mascot snaps a clapperboard in a neon film studio as sparkles burst and shooting stars cross the screen behind her"></a><br><sub><b>Image to video</b> · Veo 3.1 Lite, 8 s with sound, 10 credits, started from the studio image below · <a href="assets/flo-action.mp4">play with sound (mp4)</a></sub></td>
+  </tr>
+  <tr>
+    <td colspan="2"><img src="assets/gallery/flo-character-sheet.webp" alt="Character sheet of Flo, a chibi anime mascot with purple cat headphones and goggles, in front, side and back views, made with Google Flow Nano Banana via flow-mcp"><br><sub><b>Character sheet</b> · one reference image in, a consistent front, side and back turnaround out</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="assets/gallery/flo-director-studio.webp" alt="Flo the mascot in a director's chair holding a clapperboard in a neon purple film studio, made with flow-mcp"><br><sub><b>Text to image</b> · "Flo directing a film in a neon studio"</sub></td>
+    <td width="50%"><img src="assets/gallery/flo-claymation-paper-boat.webp" alt="Flo as a claymation figure riding a paper boat down a tissue-paper river through a felt forest, made with flow-mcp"><br><sub><b>Same character, new style</b> · claymation on a paper boat</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="assets/gallery/flo-lighthouse-dusk.webp" alt="Flo standing on a cliff next to a striped lighthouse at violet dusk, made with flow-mcp"><br><sub><b>Before</b> · "Flo at a lighthouse at dusk"</sub></td>
+    <td width="50%"><img src="assets/gallery/flo-lighthouse-winter-edit.webp" alt="The same lighthouse scene edited into a snowy winter night with an aurora, Flo now wearing a scarf, made with flow-mcp"><br><sub><b>After</b> · "turn it into a snowy winter night", same pose and composition</sub></td>
+  </tr>
+</table>
 
-**Claude Desktop** — `claude_desktop_config.json`:
+## How it fits together
 
-```json
-{
-  "mcpServers": {
-    "flow-mcp": { "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
-  }
-}
-```
+- The **MCP server** (`flow-mcp serve`) runs on your computer and gives your assistant [18 Flow tools](docs/usage.md#mcp-tools):
+  images, videos, upscaling, characters, projects, credits and Flow's agent chat.
+- A **Chrome window** with its own profile stays signed in to your Google account. flow-mcp drives Flow's
+  own page there, so Flow handles sign-in and verification as it does for you.
+- **Projects** keep each piece of work together: Flow's agent remembers it, and local files upload once and
+  are reused.
+- The **flow-director skill** plans shots, previews everything as free images, then spends credits once
+  the plan is right.
 
-If you set `FLOW_HOME` (see [Configuration](#configuration)), pass the same value to the client: add
-`-e FLOW_HOME=...` before `--` for Claude Code, or an `"env"` entry in the JSON configs.
+See [How it works](docs/how-it-works.md) for the details.
 
-## Switching Google accounts
+## Credits and safety
 
-- **Change the account:** in the Flow Chrome window, sign out (avatar, top right) and sign in with the
-  other account. Nothing else changes.
-- **Keep several accounts:** give each one its own state folder, and its own port if two should run at
-  the same time:
+Images, edits and 2K upscales are free. For videos, Flow's agent quotes a price first, and flow-mcp
+approves only within your `max_credits` (default 10). It never picks "Always approve" and never retries a
+paid generation. An 8 s Veo 3.1 Lite video costs 10 credits on a free account (October 2026).
 
-  ```bash
-  FLOW_HOME=~/.flow-mcp-work FLOW_CDP_PORT=9223 npx -y @parthmax/flow-mcp setup
-  ```
+> **Alpha, unofficial.** Tested on Windows with an English-language Flow account. Automating the Flow
+> website may be against Google's terms, and the local control port can act as your Google account. Read
+> [Security and risks](docs/security.md) first. Not affiliated with Google.
 
-  Then add a second server entry in your client with the same `FLOW_HOME` and `FLOW_CDP_PORT`
-  (for example named `flow-mcp-work`).
+## Documentation
 
-## Running from source
-
-```bash
-git clone https://github.com/parthmax2/flow-mcp.git && cd flow-mcp
-npm install && npm run build
-node dist/cli.js setup
-```
-
-From a checkout, `setup` connects clients with `node <folder>/dist/cli.js serve` instead of `npx`.
-
-## Using it
-
-Ask your assistant in plain words, for example *"make an image of a lighthouse at dusk"*, *"edit my
-photo C:\photos\me.jpg into a winter scene"* or *"make an 8 second video of a paper boat, max 10 credits"*.
-
-While it works, a Chrome window shows Flow doing the job. Leave that window open, and don't type in
-its Flow tab during a request. Downloads are saved to `~/.flow-mcp/output` by default.
-
-### Credits are protected
-
-- **Images are free.** They never need credits.
-- **Videos cost credits, and Flow's agent quotes the price first** ("costing 10 credits?"). The server
-  approves only when the quote is within the `max_credits` you allow (default 10). A higher quote is
-  rejected and nothing is spent.
-- It never chooses Flow's "Always approve", and it never retries a paid generation on its own.
-- If a project's agent is set to spend without asking (Agent settings: "Never"), chats and videos refuse to
-  run there until it is switched back (`flow_settings` with approval `always`).
-- The assistant is instructed to tell you the cost and ask before approving. Check the balance with
-  `flow_credits` at any time.
-
-Observed on a free account (October 2026): an 8 s Veo 3.1 Lite video costs 10 credits, an Omni 1.1 Flash
-video-to-video edit costs 20 credits at 720p, and image upscaling to 2K is free.
-
-### Better results: the flow-director skill
-
-The server ships with a director's playbook for Flow: it asks only the follow-ups that matter, plans shots and
-credits, previews everything as free images first, and knows how to prompt Veo, keep a character consistent across
-shots (character sheets turned into Flow characters with a voice, chaining each shot from the last frame of the one before), swap characters and
-restyle footage.
-
-- **Claude Code:** `setup` installs it as the `flow-director` skill (or run `npx -y @parthmax/flow-mcp skill`).
-- **Other clients:** use the server's `flow_director` prompt; its reference files are `flow://flow-director/...` resources.
-
-### Projects and uploads
-
-Every request that creates something names a project: an existing `project_id` to keep working on the
-same piece (the agent remembers it and your uploads are reused), or `new_project_title` to start a new
-idea. Local files are uploaded once per project, recognised by their content, and reused afterwards.
-
-## Tools
-
-| Tool | What it does | Cost |
-|---|---|---|
-| `flow_sign_in` | Opens the Flow window for the user to sign in to Google, and waits | free |
-| `flow_status` | Health check: signed-in account, credits, and what is wrong if something is | free |
-| `flow_credits` | Remaining Flow credits | free |
-| `flow_projects` | Lists projects, with the purpose and uploads recorded for ones this tool made | free |
-| `flow_assets` | Lists a project's images and videos with ids, sources and duplicate uploads | free |
-| `flow_trash` | Moves media to Flow's trash: previews first, moves only with the confirmation code | free |
-| `generate_image` | Creates or edits images; attach files or project media to edit or combine | free |
-| `generate_images` | Several images at once in up to 3 parallel Flow tabs, about 3x faster | free |
-| `flow_upscale` | Downloads an image at 2K (free) or 4K (paid plans), or lists the sizes offered | free / plan |
-| `flow_chat` | Sends one message to Flow's agent and returns its exact reply | free |
-| `flow_approve` | Approves or rejects the agent's spend request, within `max_credits` | quoted credits |
-| `flow_wait` | Waits for media to finish and downloads it | free |
-| `flow_transcript` | Reads a project's agent conversation | free |
-| `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
-| `generate_video` | Starts a video: asks, approves within budget, returns once rendering; `flow_wait` collects it. Inputs take a role: start/end frame, ingredients, source video | quoted credits |
-| `flow_frame` | Saves a video's first, last or timed frame as PNG, e.g. to start the next shot on it | free |
-| `flow_characters` | Lists, creates (from a project image) and changes Flow characters: name, notes, voice; lists voices. Use them with `characters` on the creating tools | free |
-| `flow_capabilities` | Lists everything Flow offers and what this server covers | free |
-
-The full feature list, with costs and plan limits, is in [CAPABILITIES.md](CAPABILITIES.md).
-
-## Configuration
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `FLOW_HOME` | `~/.flow-mcp` | State folder: Chrome profile, registry, downloads, captures |
-| `FLOW_OUTPUT_DIR` | `$FLOW_HOME/output` | Where downloaded media is saved |
-| `FLOW_CDP_PORT` | `9222` | Local port of the controlled Chrome window |
-| `FLOW_CHROME_PATH` | auto-detected | Chrome executable, if it is not found |
-| `FLOW_CONFIRM_RIGHTS` | setup choice | `1` or `0` to override whether uploads confirm Flow's rights notice |
-
-`FLOW_HOME` holds your signed-in Google session. Keep it private and out of version control.
-
-## Troubleshooting
-
-Start with the health check, which names the problem and the fix (your assistant can run it too, as
-`flow_status`):
-
-```bash
-npx -y @parthmax/flow-mcp status
-```
-
-It reports `ready`, or `browser_down`, `signed_out`, `challenge` (Google wants a verification),
-`blocked`, or `ui_changed` with the list of page controls that went missing.
-
-- **Tools fail or say nobody is signed in:** run `npx -y @parthmax/flow-mcp setup` again and sign in.
-- **Chrome does not start, or port 9222 is busy:** close other Chrome windows started with remote
-  debugging, or set `FLOW_CDP_PORT` to another port (for both `setup` and the client config).
-- **A request stops at a step it used to pass:** Flow's website may have changed. Make sure Flow is in
-  English, then report it with the error message.
-
-## Command line
-
-The same features work from a terminal, which helps when testing: `npx -y @parthmax/flow-mcp help` lists them
-(`status`, `credits`, `projects`, `assets`, `image`, `edit`, `video`, `chat`, `transcript`, `upscale`).
+| Goal | Start here |
+|---|---|
+| Install and connect a client | [Getting started](docs/getting-started.md) |
+| Make images and videos, manage credits | [Usage](docs/usage.md) · [Capabilities](CAPABILITIES.md) |
+| Get better results from Veo and Nano Banana | [flow-director skill](skills/flow-director/SKILL.md) |
+| Change folders, ports, or Google accounts | [Configuration](docs/configuration.md) |
+| Fix a problem | [Troubleshooting](docs/troubleshooting.md) |
+| Understand the risks | [Security and risks](docs/security.md) |
+| Learn how it is built | [How it works](docs/how-it-works.md) |
+| Give an AI the project summary | [llms.txt](llms.txt) |
 
 ## Development
 
 ```bash
-npm run typecheck      # type-check sources and tests
-npm test               # unit tests
-npm run build          # compile to dist/
-npm run capabilities   # regenerate CAPABILITIES.md from src/capabilities.ts
-npm run e2e            # end-to-end test of the built server against your Flow account (free actions only)
+git clone https://github.com/parthmax2/flow-mcp.git
+cd flow-mcp
+npm install
+npm run build
+npm test
 ```
+
+Coding agents working on this repo: read [AGENTS.md](AGENTS.md).
+
+## Community
+
+Use [GitHub issues](https://github.com/parthmax2/flow-mcp/issues) for bugs and feature requests. If Flow's
+website changed and something broke, include the `status` output. Fixes, macOS and Linux testing, and new
+tools are welcome as pull requests.
+
+Built and maintained by **Saksham Pathak** ([Parthmax](https://github.com/parthmax2)):
+[parthmax.in](https://parthmax.in) · [LinkedIn](https://linkedin.com/in/sakshampathak) · [Hugging Face](https://huggingface.co/parthmax)
 
 ## License
 
-MIT. See [LICENSE](LICENSE). Provided as is, without warranty; you are responsible for how you use it
-and for your Google account.
+MIT. See [LICENSE](LICENSE). Google and Google Flow are trademarks of Google LLC.

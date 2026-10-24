@@ -1,0 +1,38 @@
+# flow-mcp
+
+> Google Flow MCP server: lets AI assistants (Claude Code, Cursor, VS Code, Claude Desktop) generate and edit Nano Banana images, make Veo 3.1 and Omni videos, and upscale, through the user's own signed-in Chrome. No API key.
+
+Use this file as a map of the flow-mcp documentation. flow-mcp is unofficial, open source (MIT), published on npm as `@parthmax/flow-mcp`, and not affiliated with Google. Google Flow has no public API, so flow-mcp drives the Flow website in a local Chrome window signed in to the user's own account, using that account's plan and credits.
+
+## Key facts for assistants
+
+- Install: `npx -y @parthmax/flow-mcp setup` (Node.js 22+, Google Chrome). Unattended: `npx -y @parthmax/flow-mcp setup --connect`; the user signs in to Google once. Clients run `npx -y @parthmax/flow-mcp serve` over stdio.
+- Images, edits and 2K upscales are free. Videos cost credits (free account, October 2026: 50 credits a day; 8 s Veo 3.1 Lite = 10; Omni video-to-video at 720p = 20). Tell the user the quoted cost and get a yes before `flow_approve`; set `max_credits` to what they accepted. Never retry a paid generation.
+- Every creating call names a project: `project_id` to continue, `new_project_title` to start. Local files go in `attachments` and upload once per project. Ask the user before attaching their files; pass `confirm_rights: true` only after they confirm.
+- `generate_video` returns once rendering starts; call `flow_wait` until it completes. On any failure, call `flow_status` and relay its fix.
+- Status: alpha, tested on Windows with Flow in English.
+
+## Documentation
+
+- [README](README.md): what it is, install, quick start, how it fits together, credits and safety
+- [Getting started](docs/getting-started.md): requirements, setup, connecting Claude Code, Cursor, VS Code and Claude Desktop, running from source
+- [Usage](docs/usage.md): credits, projects, uploads, videos and frames, characters, the 18 MCP tools, command line
+- [Capabilities](CAPABILITIES.md): every Flow feature, the tool that covers it, cost and plan limits
+- [Configuration](docs/configuration.md): environment variables, several Google accounts
+- [Troubleshooting](docs/troubleshooting.md): `status` results and common fixes
+- [Security and risks](docs/security.md): Google's terms, the local control port, session files, upload rights
+- [How it works](docs/how-it-works.md): architecture and source layout
+
+## Prompting and directing
+
+- [flow-director skill](skills/flow-director/SKILL.md): plan shots and credits, preview with free images, then spend credits
+- [Prompting](skills/flow-director/references/prompting.md): prompt formula, camera and audio vocabulary, edit prompts
+- [Consistency](skills/flow-director/references/consistency.md): character sheets, ingredients, frame chaining
+- [Editing](skills/flow-director/references/editing.md): character swap, restyle, continuing a shot
+
+## Project links
+
+- Source: https://github.com/parthmax2/flow-mcp
+- npm: https://www.npmjs.com/package/@parthmax/flow-mcp
+- Issues: https://github.com/parthmax2/flow-mcp/issues
+- Author: Saksham Pathak (Parthmax), https://parthmax.in

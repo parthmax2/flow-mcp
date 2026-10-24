@@ -4,14 +4,22 @@
   "description": "Unofficial MCP server that lets AI assistants use Google Flow (images, Veo and Omni video, upscaling) through your own signed-in Chrome. Not affiliated with Google.",
   "keywords": [
     "mcp",
+    "mcp-server",
     "model-context-protocol",
     "google-flow",
     "veo",
+    "veo-3",
     "nano-banana",
+    "gemini",
     "ai",
     "image-generation",
     "video-generation",
-    "claude"
+    "text-to-video",
+    "image-to-video",
+    "claude",
+    "claude-code",
+    "cursor",
+    "vscode"
   ],
   "author": "parthmax2 <pathaksaksham430@gmail.com>",
   "license": "MIT",
@@ -32,6 +40,7 @@
     "skills",
     "README.md",
     "CAPABILITIES.md",
+    "llms.txt",
     "LICENSE"
   ],
   "engines": {
@@ -63,8 +72,6 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",
-    "@parthmax/flow-mcp": "^0.5.0",
-    "chrome": "^0.1.0",
     "playwright-core": "^1.64.1",
     "zod": "^4.6.7"
   },
