@@ -15,6 +15,7 @@ export interface Capability {
 }
 
 export const CAPABILITIES: Capability[] = [
+  { area: "Account", feature: "Sign in (opens the Flow window and waits for the user)", tool: "flow_sign_in", cost: "free", plan: "free" },
   { area: "Account", feature: "Credit balance", tool: "flow_credits", cost: "free", plan: "free", notes: "Free accounts get 50 credits a day." },
   { area: "Account", feature: "Health check (sign-in, challenges, blocks, page changes)", tool: "flow_status", cost: "free", plan: "free" },
 

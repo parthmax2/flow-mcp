@@ -31,6 +31,19 @@ Google account, so it uses your Flow plan and credits. There is no API key and n
 - A Google account that can open Flow. A free account works: it gets 50 Flow credits a day.
 - Windows is tested. macOS and Linux paths are written but untested.
 
+## Easiest: ask your AI to set it up
+
+You need [Node.js](https://nodejs.org) 22+ and Google Chrome. Then paste this to Claude Code (or another
+assistant that can run commands):
+
+> Set up the Google Flow MCP server for me: run `npx -y @parthmax/flow-mcp setup --connect`. A Chrome
+> window will open; tell me to sign in to Google there. When it is done, tell me to restart you.
+
+The only thing you do is sign in to Google once in the window that opens. If you want uploads to confirm
+Flow's "I hold the rights" notice automatically (only if you upload just your own files), tell your
+assistant to add `--confirm-rights`. After a restart, ask for anything, e.g. *"make an image of a
+lighthouse at dusk"*. If you are ever signed out, your assistant opens the sign-in window again itself.
+
 ## Setup
 
 ```bash
@@ -142,6 +155,7 @@ idea. Local files are uploaded once per project, recognised by their content, an
 
 | Tool | What it does | Cost |
 |---|---|---|
+| `flow_sign_in` | Opens the Flow window for the user to sign in to Google, and waits | free |
 | `flow_status` | Health check: signed-in account, credits, and what is wrong if something is | free |
 | `flow_credits` | Remaining Flow credits | free |
 | `flow_projects` | Lists projects, with the purpose and uploads recorded for ones this tool made | free |

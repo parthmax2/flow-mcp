@@ -10,6 +10,22 @@ export async function signedInEmail(page: Page): Promise<string | undefined> {
   return label?.match(/\(([^()\s]+@[^()\s]+)\)/)?.[1];
 }
 
+/**
+ * Brings the Flow window to the front and, when nobody is signed in, opens Flow's own sign-in
+ * (its "Create with Google Flow" entry leads to Google's account chooser), so the user only
+ * has to pick or enter their account. Returns the email when someone is already signed in.
+ */
+export async function startSignIn(page: Page): Promise<string | undefined> {
+  await page.bringToFront();
+  const already = await signedInEmail(page);
+  if (already) return already;
+  const flowHome = new URL(page.url()).origin;
+  if (new URL(page.url()).pathname !== "/") await page.goto(flowHome, { waitUntil: "domcontentloaded" }).catch(() => {});
+  const entry = page.getByRole("link", { name: /create with google flow|sign in/i }).or(page.getByRole("button", { name: /create with google flow|sign in/i }));
+  await entry.first().click({ timeout: 10_000 }).catch(() => {});
+  return undefined;
+}
+
 /** Polls until someone signs in to Flow in the tab, or the timeout passes. */
 export async function waitForSignIn(page: Page, timeoutMs: number, onWaiting?: () => void): Promise<string | undefined> {
   const deadline = Date.now() + timeoutMs;

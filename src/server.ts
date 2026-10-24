@@ -2,6 +2,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { getFlowPage } from "./browser/connect.js";
+import { launchChrome } from "./browser/chrome.js";
+import { startSignIn, waitForSignIn } from "./flow/account.js";
 import { listAssets } from "./flow/assets.js";
 import { checkHealth } from "./flow/health.js";
 import { generate } from "./flow/generate.js";
@@ -16,6 +18,7 @@ import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
+First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
 Projects: every creating call names a project. Use flow_projects to see existing ones. Keep iterating on the same
 piece (edits, retries, variations) in its project: the agent remembers and uploads are reused. Use new_project_title
 (and project_purpose) for a different idea or deliverable. new_session resets the agent's memory but keeps the media.
@@ -105,6 +108,35 @@ server.registerTool(
     annotations: { readOnlyHint: true },
   },
   async () => json(await serialize(() => checkHealth())),
+);
+
+server.registerTool(
+  "flow_sign_in",
+  {
+    title: "Sign in to Google Flow",
+    description:
+      "Opens the Flow Chrome window (starting it if needed), brings it to the front, opens Flow's Google sign-in and " +
+      "waits until the user has signed in there, then returns the account. Use it when flow_status says 'signed_out' " +
+      "or on first use: first tell the user a Chrome window will open and they should sign in with their Google " +
+      "account. Returns at once if someone is already signed in. Free.",
+    inputSchema: {
+      wait_seconds: z.number().int().min(10).max(600).optional().describe("How long to wait for the sign-in (default 300)"),
+    },
+  },
+  async ({ wait_seconds }, extra) =>
+    json(
+      await serialize(async () => {
+        await launchChrome();
+        const page = await getFlowPage();
+        const already = await startSignIn(page);
+        if (already) return { signedIn: true, email: already };
+        progressReporter(extra)("waiting for the user to sign in to Google in the Flow window");
+        const email = await waitForSignIn(page, (wait_seconds ?? 300) * 1000);
+        return email
+          ? { signedIn: true, email, next: "Signed in; the session is kept, so this is not needed again." }
+          : { signedIn: false, next: "Nobody signed in yet. Ask the user to finish signing in in the Flow window, then call this again." };
+      }),
+    ),
 );
 
 server.registerTool(

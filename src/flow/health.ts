@@ -95,7 +95,7 @@ export async function checkHealth(): Promise<Health> {
 
     const email = await signedInEmail(tab);
     if (!email) {
-      return { state: "signed_out", ok: false, details: "Nobody is signed in to Flow in the controlled Chrome window.", fix: "Run `flow-mcp setup` and sign in." };
+      return { state: "signed_out", ok: false, details: "Nobody is signed in to Flow in the controlled Chrome window.", fix: "Call flow_sign_in (or run `npx -y @parthmax/flow-mcp setup`) and sign in to Google in the window that opens." };
     }
 
     const credits = await readCredits(tab).catch(() => undefined);

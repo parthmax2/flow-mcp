@@ -7,7 +7,7 @@ import { launchChrome } from "./browser/chrome.js";
 import { disconnect, getFlowPage } from "./browser/connect.js";
 import { Recorder } from "./capture/recorder.js";
 import { config, FLOW_HOME, PROJECT_ROOT } from "./config.js";
-import { waitForSignIn } from "./flow/account.js";
+import { startSignIn, waitForSignIn } from "./flow/account.js";
 import { checkHealth } from "./flow/health.js";
 import { savePreferences } from "./state/preferences.js";
 import { PACKAGE_NAME, VERSION } from "./version.js";
@@ -41,14 +41,15 @@ async function setup() {
   console.log(`State folder (Chrome profile, registry, downloads): ${FLOW_HOME}\n`);
   if (!(await launchChrome())) console.log(`${REUSED}\n`);
   const page = await getFlowPage();
+  await startSignIn(page);
   const email = await waitForSignIn(page, 10 * 60_000, () =>
-    console.log("A Chrome window opened on Google Flow. Sign in there with the Google account to use (click 'Create with Google Flow').\nWaiting for sign-in..."),
+    console.log("A Chrome window opened on Google Flow. Sign in there with the Google account to use.\nWaiting for sign-in..."),
   );
   await disconnect();
   if (!email) throw new Error("Nobody signed in within 10 minutes. Run `flow-mcp setup` again when ready.");
   console.log(`Signed in to Google Flow as ${email}. The session is kept in the state folder.\n`);
 
-  // Questions only when someone is at the terminal; otherwise nothing is assumed.
+  // Flags let an AI assistant run setup for the user; questions only when someone is at the terminal.
   const interactive = process.stdin.isTTY && !args.includes("--no-prompt");
   const ask = async (question: string, onEnter: boolean): Promise<boolean> => {
     const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -57,9 +58,12 @@ async function setup() {
     return answer ? answer.startsWith("y") : onEnter;
   };
 
-  if (interactive) {
-    console.log("When a file is uploaded, Flow asks the uploader to confirm they hold the rights to it.");
-    const confirm = await ask("Confirm that notice automatically for your uploads from now on? Only say yes if you only upload files you own. [y/N] ", false);
+  // The rights choice is the user's: set only by their explicit flag or answer.
+  const rightsFlag = args.includes("--confirm-rights") ? true : args.includes("--no-confirm-rights") ? false : undefined;
+  if (rightsFlag !== undefined || interactive) {
+    if (rightsFlag === undefined) console.log("When a file is uploaded, Flow asks the uploader to confirm they hold the rights to it.");
+    const confirm =
+      rightsFlag ?? (await ask("Confirm that notice automatically for your uploads from now on? Only say yes if you only upload files you own. [y/N] ", false));
     savePreferences({ confirmUploadRights: confirm });
     console.log(confirm ? "Uploads will confirm the notice for you.\n" : "Uploads will ask first (your assistant passes confirm_rights after asking you).\n");
   }
@@ -70,10 +74,14 @@ async function setup() {
   if (command[0] === "node" && !existsSync(command[1])) console.log(`Build it first: npm run build (creates ${command[1]}).\n`);
 
   const hasClaude = spawnSync("claude", ["--version"], { shell: true, stdio: "ignore" }).status === 0;
-  if (hasClaude && interactive && (await ask("Add flow-mcp to Claude Code now? [Y/n] ", true))) {
+  const alreadyAdded = hasClaude && spawnSync("claude", ["mcp", "get", "flow-mcp"], { shell: true, stdio: "ignore" }).status === 0;
+  const connect = args.includes("--connect") || (interactive && (await ask("Add flow-mcp to Claude Code now? [Y/n] ", true)));
+  if (alreadyAdded) {
+    console.log("Claude Code already has flow-mcp. (To replace it: claude mcp remove flow-mcp --scope user, then run setup again.)\n");
+  } else if (hasClaude && connect) {
     const added = spawnSync("claude", addArgs.map(quote), { shell: true, encoding: "utf8" });
-    if (added.status === 0) console.log("Added to Claude Code. Restart Claude Code to use it.\n");
-    else console.log(`Claude Code did not add it: ${(added.stderr || added.stdout).trim()}\n(If it already exists, remove it first: claude mcp remove flow-mcp --scope user)\n`);
+    if (added.status === 0) console.log("Added to Claude Code. Restart Claude Code (or reconnect it with /mcp) to use it.\n");
+    else console.log(`Claude Code did not add it: ${(added.stderr || added.stdout).trim()}\n`);
   } else {
     console.log("Connect it to Claude Code with:\n");
     console.log(`  claude ${addArgs.map(quote).join(" ")}\n`);
@@ -191,7 +199,9 @@ async function upscaleCmd(projectId: string, mediaId: string, size?: string) {
 const HELP = `flow-mcp ${VERSION} - Google Flow for AI assistants, through your own signed-in Chrome
 
 Setup and serving:
-  flow-mcp setup                       Open Chrome, sign in to Flow, print the line to connect an MCP client
+  flow-mcp setup                       Open Chrome, sign in to Flow, connect an MCP client
+      --connect                        add to Claude Code without asking (for AI assistants running setup)
+      --confirm-rights | --no-confirm-rights   uploads confirm Flow's rights notice automatically, or not
   flow-mcp serve                       Run the MCP server (MCP clients start this themselves)
 
 Direct use (handy for testing):

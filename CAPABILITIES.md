@@ -7,6 +7,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
+| Sign in (opens the Flow window and waits for the user) | `flow_sign_in` | free | free |  |
 | Credit balance | `flow_credits` | free | free | Free accounts get 50 credits a day. |
 | Health check (sign-in, challenges, blocks, page changes) | `flow_status` | free | free |  |
 

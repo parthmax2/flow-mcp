@@ -19,7 +19,7 @@ const generate = !args.includes("--no-generate");
 let projectId = args.includes("--project") ? args[args.indexOf("--project") + 1] : undefined;
 
 const EXPECTED_TOOLS = [
-  "flow_status", "flow_credits", "flow_projects", "flow_assets", "flow_trash", "generate_image", "flow_upscale",
+  "flow_status", "flow_sign_in", "flow_credits", "flow_projects", "flow_assets", "flow_trash", "generate_image", "flow_upscale",
   "flow_settings", "flow_capabilities", "flow_chat", "flow_approve", "flow_wait", "flow_transcript", "generate_video",
 ];
 
@@ -76,6 +76,11 @@ await check("health check reports ready", async () => {
   const health = await call("flow_status");
   assert(health.state === "ready", `state ${health.state}: ${health.details}`);
   return health.details;
+});
+await check("sign-in returns the account at once when signed in", async () => {
+  const result = await call("flow_sign_in", { wait_seconds: 10 }, 60);
+  assert(result.signedIn === true && typeof result.email === "string", "not reported as signed in");
+  return result.email;
 });
 await check("reads the credit balance", async () => {
   const { credits } = await call("flow_credits");
