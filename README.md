@@ -100,7 +100,7 @@ If you set `FLOW_HOME` (see [Configuration](#configuration)), pass the same valu
 ## Running from source
 
 ```bash
-git clone <repository-url> flow-mcp && cd flow-mcp
+git clone https://github.com/parthmax2/flow-mcp.git && cd flow-mcp
 npm install && npm run build
 node dist/cli.js setup
 ```

@@ -15,6 +15,14 @@
   ],
   "author": "parthmax2 <pathaksaksham430@gmail.com>",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/parthmax2/flow-mcp.git"
+  },
+  "homepage": "https://github.com/parthmax2/flow-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/parthmax2/flow-mcp/issues"
+  },
   "type": "module",
   "bin": {
     "flow-mcp": "dist/cli.js"
