@@ -6,7 +6,7 @@ import { launchChrome } from "./browser/chrome.js";
 import { startSignIn, waitForSignIn } from "./flow/account.js";
 import { listAssets } from "./flow/assets.js";
 import { checkHealth } from "./flow/health.js";
-import { generate } from "./flow/generate.js";
+import { generate, generateBatch } from "./flow/generate.js";
 import { listProjects } from "./flow/projects.js";
 import { chatTurn, decide, transcript, waitForMedia } from "./flow/session.js";
 import { openProject, readCredits, serialize, type ProjectChoice } from "./flow/ui.js";
@@ -242,6 +242,41 @@ server.registerTool(
   async (a) => {
     const result = await generate({ prompt: a.prompt, images: a.attachments, mediaIds: a.media_ids, confirmRights: a.confirm_rights, ...projectChoice(a) });
     return json({ ...result, nextSteps: nextSteps(result.projectId, result.files) });
+  },
+);
+
+server.registerTool(
+  "generate_images",
+  {
+    title: "Create several images at once with Google Flow",
+    description:
+      "Runs several separate image requests in parallel (up to 3 Flow tabs at a time, each in its own agent session), " +
+      "about 3x faster than one by one. Use it for a set of different images, e.g. one per scene or one per reference " +
+      "frame. Files in attachments are uploaded once for the whole batch. Each job reports its own files or error. Free.",
+    inputSchema: {
+      jobs: z
+        .array(
+          z.object({
+            prompt: z.string().min(1),
+            attachments: z.array(z.string().min(1)).max(5).optional().describe("Local image paths for this job"),
+            media_ids: z.array(z.string().uuid()).max(5).optional(),
+          }),
+        )
+        .min(1)
+        .max(12),
+      parallel: z.number().int().min(1).max(3).optional().describe("Tabs at once (default 3)"),
+      ...projectFields,
+      confirm_rights: confirmRights,
+    },
+  },
+  async (a, extra) => {
+    const results = await generateBatch(
+      a.jobs.map((j) => ({ prompt: j.prompt, images: j.attachments, mediaIds: j.media_ids })),
+      { ...projectChoice(a), parallel: a.parallel, confirmRights: a.confirm_rights, onProgress: progressReporter(extra) },
+    );
+    return json({
+      results: results.map((r) => (r.ok ? { index: r.index, ok: true, files: r.result.files, reply: r.result.reply } : r)),
+    });
   },
 );
 

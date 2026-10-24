@@ -94,7 +94,7 @@ async function finishTurn(
 ): Promise<TurnResult> {
   await waitForAgentTurn(page);
   // Images and video placeholders are announced just after the agent's last words.
-  await page.waitForTimeout(4_000);
+  await page.waitForTimeout(1_500);
   const all = await readTranscript(page, { includeThinking });
   const messages = all.slice(before);
   const approval = pendingApproval(messages);

@@ -47,6 +47,10 @@ export async function launchChrome(): Promise<boolean> {
       "--remote-debugging-address=127.0.0.1",
       `--user-data-dir=${config.profileDir}`,
       "--no-first-run",
+      // Parallel requests run in background tabs; keep Chrome from slowing those down.
+      "--disable-background-timer-throttling",
+      "--disable-renderer-backgrounding",
+      "--disable-backgrounding-occluded-windows",
       "--no-default-browser-check",
       config.flowUrl,
     ],

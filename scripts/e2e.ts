@@ -19,7 +19,7 @@ const generate = !args.includes("--no-generate");
 let projectId = args.includes("--project") ? args[args.indexOf("--project") + 1] : undefined;
 
 const EXPECTED_TOOLS = [
-  "flow_status", "flow_sign_in", "flow_credits", "flow_projects", "flow_assets", "flow_trash", "generate_image", "flow_upscale",
+  "flow_status", "flow_sign_in", "flow_credits", "flow_projects", "flow_assets", "flow_trash", "generate_image", "generate_images", "flow_upscale",
   "flow_settings", "flow_capabilities", "flow_chat", "flow_approve", "flow_wait", "flow_transcript", "generate_video",
 ];
 

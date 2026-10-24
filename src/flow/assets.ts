@@ -215,7 +215,7 @@ export async function attachMedia(page: Page, mediaIds: string[], assets: Asset[
     await page.getByRole("button", { name: "Add ingredients to the prompt box" }).click({ timeout: 30_000 });
     // Narrow the picker to this title, then pick the thumbnail that belongs to this exact media.
     await page.locator('input[aria-label="Search assets"]').fill(asset.title.slice(0, 60), { timeout: 5_000 }).catch(() => {});
-    await page.waitForTimeout(800);
+    await page.waitForTimeout(400);
     const options = page.getByRole("option");
     const byThumb = options.filter({ has: page.locator(`img[src*="${asset.previewToken ?? id}"], img[src*="${id}"]`) });
     const option = (await byThumb.count()) > 0 ? byThumb.first() : options.filter({ hasText: asset.title }).first();

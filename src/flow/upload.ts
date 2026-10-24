@@ -37,10 +37,31 @@ export async function uploadFile(page: Page, file: string, asName: string, confi
   const staged = path.join(STAGING, asName);
   copyFileSync(abs, staged);
 
-  await page.getByRole("button", { name: "Add media menu" }).click({ timeout: 30_000 });
-  const chooser = page.waitForEvent("filechooser", { timeout: 15_000 });
-  await page.getByRole("menuitem", { name: /upload/i }).click();
-  await (await chooser).setFiles(staged);
+  // The project's top bar can be scrolled out of view or not yet drawn; bring it back first.
+  const addMedia = page.getByRole("button", { name: "Add media menu" });
+  const visible = (timeout: number) => addMedia.waitFor({ state: "visible", timeout }).then(() => true, () => false);
+  if (!(await visible(1_000))) {
+    await page.evaluate("window.scrollTo(0, 0)").catch(() => {});
+    await page.mouse.wheel(0, -10_000).catch(() => {});
+    if (!(await visible(5_000))) {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      if (!(await visible(30_000))) throw new Error("Flow's Add media button did not appear; check the Flow window.");
+    }
+  }
+
+  // A click right after the page renders can be swallowed; open the menu again if it did not appear.
+  const uploadItem = page.getByRole("menuitem", { name: /upload/i });
+  for (let attempt = 0; attempt < 3 && !(await uploadItem.isVisible().catch(() => false)); attempt++) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await addMedia.click({ timeout: 10_000 });
+    await uploadItem.waitFor({ state: "visible", timeout: 3_000 }).catch(() => {});
+  }
+  // The chooser wait is settled either way, so a failed click cannot leave it rejecting unhandled.
+  const chooser = page.waitForEvent("filechooser", { timeout: 15_000 }).catch((err: Error) => err);
+  await uploadItem.click({ timeout: 5_000 });
+  const picked = await chooser;
+  if (picked instanceof Error) throw new Error(`Flow's file picker did not open for ${path.basename(file)}.`);
+  await picked.setFiles(staged);
 
   // Exact match: video uploads also offer "I agree, do not show again".
   const agree = page.getByRole("button", { name: "I agree", exact: true });

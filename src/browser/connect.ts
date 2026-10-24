@@ -46,6 +46,15 @@ export async function getFlowPage(): Promise<Page> {
   return page;
 }
 
+/** Opens an additional Flow tab in the same signed-in Chrome, e.g. to run requests in parallel. */
+export async function openFlowTab(): Promise<Page> {
+  const b = await getBrowser();
+  const context = b.contexts()[0] ?? (await b.newContext());
+  const page = prepare(await context.newPage());
+  await page.goto(config.flowUrl, { waitUntil: "domcontentloaded" });
+  return page;
+}
+
 /** Detaches from Chrome without closing it (connectOverCDP close only drops the connection). */
 export async function disconnect(): Promise<void> {
   await browser?.close();

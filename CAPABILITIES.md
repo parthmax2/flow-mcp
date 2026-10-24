@@ -36,6 +36,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
 | Generate images (Nano Banana 2.1) | `generate_image` | free | free | Agent default is 2 images; aspect 16:9, 4:3, 1:1, 3:4, 9:16. |
+| Batch: several images in parallel tabs (about 3x faster) | `generate_images` | free | free | Up to 3 tabs, each in its own agent session. |
 | Edit images with an instruction | `generate_image (attachments / media_ids)` | free | free |  |
 | Combine several images / faces into one | `generate_image (attachments / media_ids)` | free | free |  |
 | Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. |

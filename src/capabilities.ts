@@ -32,6 +32,7 @@ export const CAPABILITIES: Capability[] = [
   { area: "Chat agent", feature: "Approval mode (ask before spending credits)", tool: "flow_settings", cost: "free", plan: "free", notes: "Only 'always' can be set; chats and videos refuse to run on 'never'." },
 
   { area: "Images", feature: "Generate images (Nano Banana 2.1)", tool: "generate_image", cost: "free", plan: "free", notes: "Agent default is 2 images; aspect 16:9, 4:3, 1:1, 3:4, 9:16." },
+  { area: "Images", feature: "Batch: several images in parallel tabs (about 3x faster)", tool: "generate_images", cost: "free", plan: "free", notes: "Up to 3 tabs, each in its own agent session." },
   { area: "Images", feature: "Edit images with an instruction", tool: "generate_image (attachments / media_ids)", cost: "free", plan: "free" },
   { area: "Images", feature: "Combine several images / faces into one", tool: "generate_image (attachments / media_ids)", cost: "free", plan: "free" },
   { area: "Images", feature: "Upscale to 2K", tool: "flow_upscale", cost: "free", plan: "free", notes: "1376x768 becomes 2752x1536." },
