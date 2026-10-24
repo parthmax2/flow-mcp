@@ -1,5 +1,7 @@
 # flow-mcp
 
+`npm: @parthmax/flow-mcp`
+
 An MCP server that lets AI assistants (Claude Code, Cursor, VS Code, Claude Desktop) use
 [Google Flow](https://flow.google.com): generate and edit images, make Veo and Omni videos, upscale, and
 work with Flow's creative agent. It drives the Flow website in a Chrome window signed in to **your own**
@@ -32,7 +34,7 @@ Google account, so it uses your Flow plan and credits. There is no API key and n
 ## Setup
 
 ```bash
-npx -y flow-mcp setup
+npx -y @parthmax/flow-mcp setup
 ```
 
 That is all. It opens a Chrome window on Flow; sign in with the Google account to use. The session is
@@ -47,7 +49,7 @@ config for other clients. Restart your AI client afterwards.
 **Claude Code**
 
 ```bash
-claude mcp add flow-mcp --scope user -- npx -y flow-mcp serve
+claude mcp add flow-mcp --scope user -- npx -y @parthmax/flow-mcp serve
 ```
 
 **Cursor** — `~/.cursor/mcp.json` (all projects) or `.cursor/mcp.json` (one project):
@@ -55,7 +57,7 @@ claude mcp add flow-mcp --scope user -- npx -y flow-mcp serve
 ```json
 {
   "mcpServers": {
-    "flow-mcp": { "command": "npx", "args": ["-y", "flow-mcp", "serve"] }
+    "flow-mcp": { "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
   }
 }
 ```
@@ -65,7 +67,7 @@ claude mcp add flow-mcp --scope user -- npx -y flow-mcp serve
 ```json
 {
   "servers": {
-    "flow-mcp": { "type": "stdio", "command": "npx", "args": ["-y", "flow-mcp", "serve"] }
+    "flow-mcp": { "type": "stdio", "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
   }
 }
 ```
@@ -75,7 +77,7 @@ claude mcp add flow-mcp --scope user -- npx -y flow-mcp serve
 ```json
 {
   "mcpServers": {
-    "flow-mcp": { "command": "npx", "args": ["-y", "flow-mcp", "serve"] }
+    "flow-mcp": { "command": "npx", "args": ["-y", "@parthmax/flow-mcp", "serve"] }
   }
 }
 ```
@@ -91,7 +93,7 @@ If you set `FLOW_HOME` (see [Configuration](#configuration)), pass the same valu
   the same time:
 
   ```bash
-  FLOW_HOME=~/.flow-mcp-work FLOW_CDP_PORT=9223 npx -y flow-mcp setup
+  FLOW_HOME=~/.flow-mcp-work FLOW_CDP_PORT=9223 npx -y @parthmax/flow-mcp setup
   ```
 
   Then add a second server entry in your client with the same `FLOW_HOME` and `FLOW_CDP_PORT`
@@ -175,13 +177,13 @@ Start with the health check, which names the problem and the fix (your assistant
 `flow_status`):
 
 ```bash
-npx -y flow-mcp status
+npx -y @parthmax/flow-mcp status
 ```
 
 It reports `ready`, or `browser_down`, `signed_out`, `challenge` (Google wants a verification),
 `blocked`, or `ui_changed` with the list of page controls that went missing.
 
-- **Tools fail or say nobody is signed in:** run `npx -y flow-mcp setup` again and sign in.
+- **Tools fail or say nobody is signed in:** run `npx -y @parthmax/flow-mcp setup` again and sign in.
 - **Chrome does not start, or port 9222 is busy:** close other Chrome windows started with remote
   debugging, or set `FLOW_CDP_PORT` to another port (for both `setup` and the client config).
 - **A request stops at a step it used to pass:** Flow's website may have changed. Make sure Flow is in
@@ -189,7 +191,7 @@ It reports `ready`, or `browser_down`, `signed_out`, `challenge` (Google wants a
 
 ## Command line
 
-The same features work from a terminal, which helps when testing: `npx -y flow-mcp help` lists them
+The same features work from a terminal, which helps when testing: `npx -y @parthmax/flow-mcp help` lists them
 (`status`, `credits`, `projects`, `assets`, `image`, `edit`, `video`, `chat`, `transcript`, `upscale`).
 
 ## Development

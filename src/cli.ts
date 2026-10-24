@@ -10,7 +10,7 @@ import { config, FLOW_HOME, PROJECT_ROOT } from "./config.js";
 import { waitForSignIn } from "./flow/account.js";
 import { checkHealth } from "./flow/health.js";
 import { savePreferences } from "./state/preferences.js";
-import { VERSION } from "./version.js";
+import { PACKAGE_NAME, VERSION } from "./version.js";
 import { generate } from "./flow/generate.js";
 import { listAssets } from "./flow/assets.js";
 import { listProjects } from "./flow/projects.js";
@@ -28,7 +28,7 @@ async function chrome() {
 /** The command an MCP client should run: npx for an installed package, node for a checkout. */
 function serveCommand(): string[] {
   const installed = /[\\/](node_modules|_npx)[\\/]/.test(PROJECT_ROOT);
-  return installed ? ["npx", "-y", "flow-mcp", "serve"] : ["node", path.join(PROJECT_ROOT, "dist", "cli.js"), "serve"];
+  return installed ? ["npx", "-y", PACKAGE_NAME, "serve"] : ["node", path.join(PROJECT_ROOT, "dist", "cli.js"), "serve"];
 }
 
 const quote = (arg: string) => (/[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')}"` : arg);
