@@ -36,8 +36,9 @@ export async function isCdpUp(): Promise<boolean> {
  * Starts a real, visible Chrome on the project's dedicated profile with a loopback-only
  * DevTools port. The user signs in to Google there once; the session persists in the profile.
  */
-export async function launchChrome(): Promise<void> {
-  if (await isCdpUp()) return;
+export async function launchChrome(): Promise<boolean> {
+  // A Chrome already listening on the port is reused as is, whichever profile it was started with.
+  if (await isCdpUp()) return false;
   mkdirSync(config.profileDir, { recursive: true });
   const child = spawn(
     findChrome(),
@@ -58,7 +59,7 @@ export async function launchChrome(): Promise<void> {
 
   for (let i = 0; i < 50; i++) {
     if (launchError) throw new Error(`Chrome could not be started: ${launchError.message}`);
-    if (await isCdpUp()) return;
+    if (await isCdpUp()) return true;
     await new Promise((r) => setTimeout(r, 200));
   }
   throw new Error(`Chrome started but DevTools did not answer on ${cdpEndpoint()}`);

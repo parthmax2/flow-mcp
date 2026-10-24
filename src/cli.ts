@@ -19,8 +19,11 @@ import { openProject, readCredits } from "./flow/ui.js";
 import { chatTurn, transcript } from "./flow/session.js";
 import { generateVideo } from "./flow/video.js";
 
+const REUSED = `A Flow Chrome was already running on port ${config.cdpPort}, so it was reused; it may use another state folder's profile.
+To use ${config.profileDir}, close that Chrome window and run this again (or set FLOW_CDP_PORT to another port).`;
+
 async function chrome() {
-  await launchChrome();
+  if (!(await launchChrome())) return console.log(REUSED);
   console.log(`Chrome is running with the Flow profile at ${config.profileDir}.`);
   console.log("Sign in to Google in that window if you have not already. It stays signed in.");
 }
@@ -36,7 +39,7 @@ const quote = (arg: string) => (/[\s"]/.test(arg) ? `"${arg.replace(/"/g, '\\"')
 async function setup() {
   console.log(`flow-mcp ${VERSION} setup`);
   console.log(`State folder (Chrome profile, registry, downloads): ${FLOW_HOME}\n`);
-  await launchChrome();
+  if (!(await launchChrome())) console.log(`${REUSED}\n`);
   const page = await getFlowPage();
   const email = await waitForSignIn(page, 10 * 60_000, () =>
     console.log("A Chrome window opened on Google Flow. Sign in there with the Google account to use (click 'Create with Google Flow').\nWaiting for sign-in..."),
