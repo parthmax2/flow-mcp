@@ -145,6 +145,16 @@ its Flow tab during a request. Downloads are saved to `~/.flow-mcp/output` by de
 Observed on a free account (October 2026): an 8 s Veo 3.1 Lite video costs 10 credits, an Omni 1.1 Flash
 video-to-video edit costs 20 credits at 720p, and image upscaling to 2K is free.
 
+### Better results: the flow-director skill
+
+The server ships with a director's playbook for Flow: it asks only the follow-ups that matter, plans shots and
+credits, previews everything as free images first, and knows how to prompt Veo, keep a character consistent across
+shots (character sheets turned into Flow characters with a voice, chaining each shot from the last frame of the one before), swap characters and
+restyle footage.
+
+- **Claude Code:** `setup` installs it as the `flow-director` skill (or run `npx -y @parthmax/flow-mcp skill`).
+- **Other clients:** use the server's `flow_director` prompt; its reference files are `flow://flow-director/...` resources.
+
 ### Projects and uploads
 
 Every request that creates something names a project: an existing `project_id` to keep working on the
@@ -169,7 +179,9 @@ idea. Local files are uploaded once per project, recognised by their content, an
 | `flow_wait` | Waits for media to finish and downloads it | free |
 | `flow_transcript` | Reads a project's agent conversation | free |
 | `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
-| `generate_video` | Starts a video: asks, approves within budget, returns once rendering; `flow_wait` collects it | quoted credits |
+| `generate_video` | Starts a video: asks, approves within budget, returns once rendering; `flow_wait` collects it. Inputs take a role: start/end frame, ingredients, source video | quoted credits |
+| `flow_frame` | Saves a video's first, last or timed frame as PNG, e.g. to start the next shot on it | free |
+| `flow_characters` | Lists, creates (from a project image) and changes Flow characters: name, notes, voice; lists voices. Use them with `characters` on the creating tools | free |
 | `flow_capabilities` | Lists everything Flow offers and what this server covers | free |
 
 The full feature list, with costs and plan limits, is in [CAPABILITIES.md](CAPABILITIES.md).

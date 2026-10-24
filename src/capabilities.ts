@@ -41,8 +41,9 @@ export const CAPABILITIES: Capability[] = [
 
   { area: "Videos", feature: "Text to video, Veo 3.1 Lite (8 s)", tool: "generate_video / flow_chat", cost: "10 credits", plan: "free", notes: "Free tier: 8 s only for Lite." },
   { area: "Videos", feature: "Text to video, Veo 3.1 Fast / Quality", tool: "generate_video (model)", cost: "more credits (quoted by Flow)", plan: "free", notes: "Not tested yet." },
-  { area: "Videos", feature: "Image to video (start frame, references)", tool: "generate_video (attachments / media_ids)", cost: "quoted by Flow", plan: "free", notes: "Not tested yet." },
-  { area: "Videos", feature: "Video-to-video edit, Omni 1.1 Flash", tool: "generate_video (attach a video)", cost: "20 credits at 720p", plan: "free", notes: "Output keeps the source clip's length." },
+  { area: "Videos", feature: "Image to video: start / end frame, ingredients (references)", tool: "generate_video (start_frame, end_frame, ingredients)", cost: "quoted by Flow", plan: "free", notes: "Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both." },
+  { area: "Videos", feature: "Video-to-video edit, Omni 1.1 Flash", tool: "generate_video (source_video)", cost: "20 credits at 720p", plan: "free", notes: "Output keeps the source clip's length." },
+  { area: "Videos", feature: "Still frame of a video (first, last, at a time), e.g. to start the next shot on", tool: "flow_frame", cost: "free", plan: "free", notes: "Decoded locally in Chrome; Flow's own Save frame is not used." },
   { area: "Videos", feature: "Download at full quality (mp4)", tool: "flow_wait / generate_video", cost: "free", plan: "free" },
   { area: "Videos", feature: "Upscale video (1080p / 4K)", tool: null, cost: "unknown", plan: "paid", notes: "Not verified on this account yet." },
 
@@ -52,7 +53,9 @@ export const CAPABILITIES: Capability[] = [
   { area: "Media", feature: "Move media to the trash (preview, then confirm)", tool: "flow_trash", cost: "free", plan: "free", notes: "Restorable in Flow. Refuses when other media shares the workflow." },
   { area: "Media", feature: "Find duplicate uploads (keeps the copy in use)", tool: "flow_assets (duplicateUploads)", cost: "free", plan: "free" },
   { area: "Media", feature: "Favorite / share media, restore from trash", tool: null, cost: "free", plan: "free" },
-  { area: "Media", feature: "Characters, Scenes, Voices, Avatars, Collections, Tools gallery", tool: null, cost: "varies", plan: "free", notes: "Flow website features not covered yet." },
+  { area: "Media", feature: "Characters: list, create from a project image, set name, notes and voice; list Flow's 30 voices", tool: "flow_characters", cost: "free", plan: "free" },
+  { area: "Media", feature: "Use characters in images, videos and chat", tool: "generate_image / generate_video / flow_chat (characters)", cost: "images free; video quoted", plan: "free", notes: "With speech Flow picks Omni 1.1 Flash: 15 credits for 10 s (Oct 2026)." },
+  { area: "Media", feature: "Scenes, Avatars, custom voices, character body views, Collections, Tools gallery", tool: null, cost: "varies", plan: "free", notes: "Flow website features not covered yet." },
 ];
 
 export function capabilitiesMarkdown(): string {

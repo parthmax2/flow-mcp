@@ -49,8 +49,9 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 |---|---|---|---|---|
 | Text to video, Veo 3.1 Lite (8 s) | `generate_video / flow_chat` | 10 credits | free | Free tier: 8 s only for Lite. |
 | Text to video, Veo 3.1 Fast / Quality | `generate_video (model)` | more credits (quoted by Flow) | free | Not tested yet. |
-| Image to video (start frame, references) | `generate_video (attachments / media_ids)` | quoted by Flow | free | Not tested yet. |
-| Video-to-video edit, Omni 1.1 Flash | `generate_video (attach a video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
+| Image to video: start / end frame, ingredients (references) | `generate_video (start_frame, end_frame, ingredients)` | quoted by Flow | free | Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both. |
+| Video-to-video edit, Omni 1.1 Flash | `generate_video (source_video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
+| Still frame of a video (first, last, at a time), e.g. to start the next shot on | `flow_frame` | free | free | Decoded locally in Chrome; Flow's own Save frame is not used. |
 | Download at full quality (mp4) | `flow_wait / generate_video` | free | free |  |
 | Upscale video (1080p / 4K) | not yet (Flow website only) | unknown | paid | Not verified on this account yet. |
 
@@ -64,5 +65,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Move media to the trash (preview, then confirm) | `flow_trash` | free | free | Restorable in Flow. Refuses when other media shares the workflow. |
 | Find duplicate uploads (keeps the copy in use) | `flow_assets (duplicateUploads)` | free | free |  |
 | Favorite / share media, restore from trash | not yet (Flow website only) | free | free |  |
-| Characters, Scenes, Voices, Avatars, Collections, Tools gallery | not yet (Flow website only) | varies | free | Flow website features not covered yet. |
+| Characters: list, create from a project image, set name, notes and voice; list Flow's 30 voices | `flow_characters` | free | free |  |
+| Use characters in images, videos and chat | `generate_image / generate_video / flow_chat (characters)` | images free; video quoted | free | With speech Flow picks Omni 1.1 Flash: 15 credits for 10 s (Oct 2026). |
+| Scenes, Avatars, custom voices, character body views, Collections, Tools gallery | not yet (Flow website only) | varies | free | Flow website features not covered yet. |
 

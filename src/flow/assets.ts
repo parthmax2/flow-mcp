@@ -213,15 +213,62 @@ export async function attachMedia(page: Page, mediaIds: string[], assets: Asset[
     const asset = assets.find((a) => a.id === id);
     if (!asset) throw new Error(`Media ${id} is not in this project; list it with flow_assets.`);
     await page.getByRole("button", { name: "Add ingredients to the prompt box" }).click({ timeout: 30_000 });
-    // Narrow the picker to this title, then pick the thumbnail that belongs to this exact media.
-    await page.locator('input[aria-label="Search assets"]').fill(asset.title.slice(0, 60), { timeout: 5_000 }).catch(() => {});
-    await page.waitForTimeout(400);
-    const options = page.getByRole("option");
-    const byThumb = options.filter({ has: page.locator(`img[src*="${asset.previewToken ?? id}"], img[src*="${id}"]`) });
-    const option = (await byThumb.count()) > 0 ? byThumb.first() : options.filter({ hasText: asset.title }).first();
-    await option.click({ timeout: 30_000 });
+    await pickAsset(page, asset);
     // Picking an image attaches it at once and closes the picker (its confirm button can still
     // be visible mid-animation). Picking a video opens a trim preview that needs the confirm.
-    await page.getByRole("button", { name: "Add to prompt" }).click({ timeout: 5_000 }).catch(() => {});
+    // The video preview can take a while to load (a padded 1280x720 clip took over 5 s), and
+    // sometimes a video is attached at once like an image. Either way the picker must close.
+    const confirm = page.getByRole("button", { name: "Add to prompt" });
+    const search = page.locator('input[aria-label="Search assets"]');
+    await Promise.race([
+      confirm.click({ timeout: asset.kind === "video" ? 30_000 : 5_000 }),
+      search.waitFor({ state: "hidden", timeout: 30_000 }),
+    ]).catch(() => {});
+    if (await search.isVisible()) {
+      await page.keyboard.press("Escape").catch(() => {});
+      throw new Error(`Flow's asset picker did not attach "${asset.title}" (${id}).`);
+    }
+  }
+}
+
+/**
+ * Clicks this media's tile in an open Flow asset picker (the agent prompt's, or the Characters
+ * page's "Add from project"): found by its thumbnail, falling back to its title.
+ */
+export async function pickAsset(page: Page, asset: Asset): Promise<void> {
+  const id = asset.id;
+  const search = page.locator('input[aria-label="Search assets"]');
+  const options = page.getByRole("option");
+  const thumb = options.filter({ has: page.locator(`img[src*="${asset.previewToken ?? id}"], img[src*="${id}"]`) }).first();
+  const shows = (target: typeof thumb, timeout: number) => target.waitFor({ state: "visible", timeout }).then(() => true, () => false);
+
+  // Search by title (long generated titles are stored cut short with "…", which the search
+  // would not match). Failing that, scroll the full list, which loads more as it scrolls.
+  const title = asset.title.replace(/…$/, "");
+  // The picker reopens on the tab used last (e.g. Characters, after attaching a character).
+  await page.locator("mat-list-item").filter({ hasText: /^\W*dashboard\s*All\s*$/ }).first().click({ timeout: 5_000 }).catch(() => {});
+  await search.fill(title.slice(0, 60), { timeout: 5_000 }).catch(() => {});
+  let option = thumb;
+  if (!(await shows(thumb, 3_000))) {
+    // Video tiles show a frame whose URL does not name the media, so a single title match
+    // among the search results is taken as is.
+    const byTitle = options.filter({ hasText: title });
+    if ((await byTitle.count()) === 1) option = byTitle.first();
+    else {
+      await search.fill("", { timeout: 5_000 }).catch(() => {});
+      let found = await shows(thumb, 2_000);
+      for (let i = 0; i < 15 && !found; i++) {
+        await options.last().scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => {});
+        found = await shows(thumb, 800);
+      }
+      if (!found) option = options.filter({ hasText: title }).first();
+    }
+  }
+  try {
+    await option.click({ timeout: 10_000 });
+  } catch {
+    // Leave no picker open behind: it would block whatever runs next in this tab.
+    await page.keyboard.press("Escape").catch(() => {});
+    throw new Error(`Could not find "${asset.title}" (${id}) in Flow's asset picker.`);
   }
 }

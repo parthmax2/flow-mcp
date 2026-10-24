@@ -2,8 +2,9 @@ import type { Page } from "playwright-core";
 import { tapRpcs, type RpcTap } from "../browser/rpc.js";
 import { getFlowPage } from "../browser/connect.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
-import { pendingApproval, readTranscript, type Approval, type ChatMessage } from "./chat.js";
+import { failuresSinceLastPrompt, pendingApproval, readTranscript, type Approval, type ChatMessage } from "./chat.js";
 import { attachInputs, type AttachedInputs } from "./assets.js";
+import { attachCharacters } from "./characters.js";
 import { clearPrompt, download, openProject, sendPrompt, waitForAgentTurn, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 import { assertApprovalRequired } from "./settings.js";
 import { checkUploadable } from "./upload.js";
@@ -117,6 +118,8 @@ export interface ChatOptions extends ProjectChoice {
   confirmRights?: boolean;
   /** Media already in the project to attach, from listAssets. */
   mediaIds?: string[];
+  /** Flow characters to attach after the media, by name or id. */
+  characters?: string[];
   includeThinking?: boolean;
 }
 
@@ -134,6 +137,7 @@ export async function chatTurn(options: ChatOptions): Promise<ChatResult> {
   try {
     await clearPrompt(page);
     const attached = await attachInputs(page, projectId, { files: options.attachments, mediaIds: options.mediaIds, confirmRights: options.confirmRights });
+    await attachCharacters(page, options.characters ?? []);
     const before = (await readTranscript(page)).length;
     const exclude = new Set([...watch.found.keys(), ...attached.mediaIds]);
     const since = Date.now() / 1000 - CLOCK_SKEW_S;
@@ -198,13 +202,18 @@ export interface WaitOptions {
 
 export interface WaitResult {
   projectId: string;
-  /** completed: every requested item is downloaded. pending: call again later (nothing is lost). */
-  status: "completed" | "pending";
+  /**
+   * completed: every requested item is downloaded. pending: call again later (nothing is lost).
+   * failed: Flow reported the generation as failed (see failures); waiting longer will not help.
+   */
+  status: "completed" | "pending" | "failed";
   files: DownloadedMedia[];
   /** Media still rendering when the wait ended. */
   pending: MediaInfo[];
   /** Anything the agent said while waiting. */
   messages: ChatMessage[];
+  /** Flow's error messages, when it reported the latest request's generation as failed. */
+  failures?: string[];
 }
 
 /** Reads a render percentage Flow shows on a placeholder tile, if any. */
@@ -234,10 +243,14 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
   try {
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.waitForTimeout(5_000);
+    let failures: string[] = [];
     while (true) {
       const items = tracked();
       const expected = wanted ? wanted.size : 1;
       if (items.length >= expected && items.every(isFullSize)) break;
+      // Failed media is never listed, so stop on the chat's error tile once nothing else is rendering.
+      failures = failuresSinceLastPrompt(await readTranscript(page).catch(() => []));
+      if (failures.length && items.every(isFullSize)) break;
       if (Date.now() >= deadline) break;
       const percent = await renderPercent(page);
       options.onProgress?.(
@@ -257,7 +270,15 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
     const messages = (await readTranscript(page)).slice(before);
     const pending = items.filter((m) => !isFullSize(m)).map(summary);
     const done = pending.length === 0 && items.length >= (wanted ? wanted.size : 1);
-    return { projectId, status: done ? "completed" : "pending", files, pending, messages };
+    const failed = failures.length > 0 && pending.length === 0;
+    return {
+      projectId,
+      status: failed ? (files.length ? "completed" : "failed") : done ? "completed" : "pending",
+      files,
+      pending,
+      messages,
+      ...(failed ? { failures } : {}),
+    };
   } finally {
     await watch.stop();
   }

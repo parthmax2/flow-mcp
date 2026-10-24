@@ -2,6 +2,7 @@ import type { Page, Request } from "playwright-core";
 import { tapRpcs } from "../browser/rpc.js";
 import { getFlowPage, openFlowTab } from "../browser/connect.js";
 import { attachInputs, ensureUploaded, type AttachedInputs } from "./assets.js";
+import { attachCharacters } from "./characters.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
 import { readTranscript, type ChatMessage } from "./chat.js";
 import { clearPrompt, download, openProject, sendPrompt, serialize, type DownloadedMedia, type ProjectChoice } from "./ui.js";
@@ -28,6 +29,8 @@ export interface GenerateOptions extends ProjectChoice {
   confirmRights?: boolean;
   /** Media already in the project to attach. */
   mediaIds?: string[];
+  /** Flow characters to attach after the media, by name or id. */
+  characters?: string[];
   timeoutMs?: number;
   /** Longest wait for full-size files after the agent has finished. */
   settleMs?: number;
@@ -62,7 +65,9 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
   const projectId = await openProject(page, options);
   await clearPrompt(page);
   const attached = await attachInputs(page, projectId, { files: options.images, mediaIds: options.mediaIds, confirmRights: options.confirmRights });
-  const inputs = new Set(attached.mediaIds);
+  const characters = await attachCharacters(page, options.characters ?? []);
+  // A character's own reference images come back with the results; they are inputs, not results.
+  const inputs = new Set([...attached.mediaIds, ...characters.flatMap((c) => c.imageIds)]);
   const before = (await readTranscript(page)).length;
 
   const media = new Map<string, FlowMedia>();
@@ -143,6 +148,7 @@ export interface BatchJob {
   /** Local images to attach (uploaded once for the whole batch). */
   images?: string[];
   mediaIds?: string[];
+  characters?: string[];
 }
 
 export type BatchResult = { index: number; prompt: string } & ({ ok: true; result: GenerateResult } | { ok: false; error: string });
@@ -177,7 +183,7 @@ export function generateBatch(
         // Images are free, so a job that came back empty gets one more try in a fresh session.
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
-            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, projectId, newSession: true }, true);
+            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, characters: job.characters, projectId, newSession: true }, true);
             results[index] = { index, prompt: job.prompt, ok: true, result };
             break;
           } catch (err) {

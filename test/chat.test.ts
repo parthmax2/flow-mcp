@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanText, pendingApproval, type ChatMessage } from "../src/flow/chat.js";
+import { cleanText, failuresSinceLastPrompt, pendingApproval, type ChatMessage } from "../src/flow/chat.js";
 
 describe("cleanText", () => {
   it("drops icon names and agent controls, keeping the message", () => {
@@ -26,5 +26,28 @@ describe("pendingApproval", () => {
 
   it("ignores approvals that were already answered", () => {
     expect(pendingApproval([answered, { role: "agent", text: "Scheduled." }])).toBeUndefined();
+  });
+});
+
+describe("failuresSinceLastPrompt", () => {
+  const failed: ChatMessage = { role: "agent", text: "Failed", failures: ["Failed: Something went wrong. Please try again."] };
+
+  it("reports a failure after the latest user message, even if the agent says it is queued", () => {
+    const messages: ChatMessage[] = [
+      { role: "user", text: "Approve" },
+      failed,
+      { role: "agent", text: "Your video generation has been scheduled and is waiting in the queue." },
+    ];
+    expect(failuresSinceLastPrompt(messages)).toEqual(["Failed: Something went wrong. Please try again."]);
+  });
+
+  it("ignores failures from earlier requests", () => {
+    expect(failuresSinceLastPrompt([{ role: "user", text: "Approve" }, failed, { role: "user", text: "Try again" }])).toEqual([]);
+  });
+});
+
+describe("cleanText with character attachments", () => {
+  it("drops character chip icons from user messages", () => {
+    expect(cleanText("accessibility_new\naccessibility_new\nMara and Theo walk", "user")).toBe("Mara and Theo walk");
   });
 });

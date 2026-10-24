@@ -10,6 +10,7 @@ import { config, FLOW_HOME, PROJECT_ROOT } from "./config.js";
 import { startSignIn, waitForSignIn } from "./flow/account.js";
 import { checkHealth } from "./flow/health.js";
 import { savePreferences } from "./state/preferences.js";
+import { installSkill, SKILL_NAME } from "./director.js";
 import { PACKAGE_NAME, VERSION } from "./version.js";
 import { generate } from "./flow/generate.js";
 import { listAssets } from "./flow/assets.js";
@@ -86,8 +87,17 @@ async function setup() {
     console.log("Connect it to Claude Code with:\n");
     console.log(`  claude ${addArgs.map(quote).join(" ")}\n`);
   }
+  if (hasClaude && (connect || alreadyAdded)) {
+    console.log(`Installed the ${SKILL_NAME} skill for Claude Code at ${installSkill()}.\n`);
+  } else {
+    console.log(`For Claude Code, \`flow-mcp skill\` installs the ${SKILL_NAME} skill. Other clients get it as the flow_director prompt.\n`);
+  }
   console.log("Other MCP clients (Cursor, VS Code, Claude Desktop) use this server entry:\n");
   console.log(JSON.stringify({ "flow-mcp": { command: command[0], args: command.slice(1), ...(env.length ? { env: { FLOW_HOME } } : {}) } }, null, 2));
+}
+
+async function skill() {
+  console.log(`Installed the ${SKILL_NAME} skill at ${installSkill()}. Restart Claude Code to load it.`);
 }
 
 async function serve() {
@@ -203,6 +213,7 @@ Setup and serving:
       --connect                        add to Claude Code without asking (for AI assistants running setup)
       --confirm-rights | --no-confirm-rights   uploads confirm Flow's rights notice automatically, or not
   flow-mcp serve                       Run the MCP server (MCP clients start this themselves)
+  flow-mcp skill                       Install the flow-director skill for Claude Code (setup does it too)
 
 Direct use (handy for testing):
   flow-mcp status | credits | projects
@@ -224,6 +235,7 @@ const [cmd, ...args] = process.argv.slice(2);
 const commands: Record<string, (...a: string[]) => Promise<void>> = {
   setup,
   serve,
+  skill,
   help,
   "--help": help,
   "-h": help,

@@ -73,15 +73,39 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
  */
 export async function clearPrompt(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
+  // Right after a load the prompt box (and its clear button) is not drawn yet; checking then
+  // would leave attachments from an earlier, failed request in place to be sent again.
+  await page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name }).waitFor({ timeout: 30_000 }).catch(() => {});
+  await page.waitForTimeout(500);
   const clear = page.getByRole("button", { name: "Clear prompt" });
-  if (await clear.isVisible().catch(() => false)) await clear.click();
+  if (await clear.isVisible().catch(() => false)) {
+    await clear.click();
+    await clear.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
+  }
 }
 
+/**
+ * Types the prompt and sends it, checking that Flow took it: the box empties on send. A page
+ * that is still initialising can drop the text or the click, which would otherwise look like
+ * a request that never answers.
+ */
 export async function sendPrompt(page: Page, text: string): Promise<void> {
   const box = page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name });
-  await box.click({ timeout: 30_000 });
-  await box.fill(text);
-  await page.locator(SEND_BUTTON).click({ timeout: 10_000 });
+  const boxText = async () => (await box.innerText().catch(() => "")).trim();
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    await box.click({ timeout: 30_000 });
+    for (let fills = 0; fills < 3 && (await boxText()) !== text.trim(); fills++) {
+      await box.fill(text);
+      await page.waitForTimeout(300);
+    }
+    if (!(await boxText())) throw new Error("Flow's prompt box would not take the text. Check the Flow window, then try again.");
+    await page.locator(SEND_BUTTON).click({ timeout: 10_000 });
+    for (let i = 0; i < 20; i++) {
+      if (!(await boxText())) return;
+      await page.waitForTimeout(500);
+    }
+  }
+  throw new Error("Flow did not take the prompt (it is still in the prompt box). Check the Flow window, then try again.");
 }
 
 /**

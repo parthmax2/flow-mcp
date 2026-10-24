@@ -21,6 +21,8 @@ export interface ChatMessage {
   approval?: Approval;
   /** Images or videos shown in the message (attachments for the user, results for the agent). */
   mediaCount?: number;
+  /** Generations Flow shows as failed in this message, e.g. "Failed: Something went wrong. Please try again." */
+  failures?: string[];
 }
 
 // Material icon names that appear in the panel's text but are not message content.
@@ -39,6 +41,11 @@ const ICONS = new Set([
   "movie",
   "mic",
   "attach_file",
+  "warning",
+  // Attachment chips for characters, voices and avatars.
+  "accessibility_new",
+  "voice_selection",
+  "face",
 ]);
 // Controls inside agent messages. A user message can legitimately be just "Approve".
 const AGENT_CONTROLS = new Set(["show thinking", "hide thinking", "approve", "always approve", "reject"]);
@@ -62,6 +69,7 @@ const READ_MESSAGES = `(() => {
       thinking,
       permission: permission ? { pending: radios.some((r) => r.getAttribute("aria-disabled") === "false"), text: permission.innerText } : null,
       mediaCount: row.querySelectorAll("img, video").length,
+      failures: [...row.querySelectorAll("flow-error-tile")].map((t) => t.textContent),
     };
   });
 })()`;
@@ -72,6 +80,7 @@ interface RawMessage {
   thinking?: string;
   permission: { pending: boolean; text: string } | null;
   mediaCount: number;
+  failures: string[];
 }
 
 const COST = /costing\s+(\d+)\s+credits?/i;
@@ -91,6 +100,8 @@ function toMessage(raw: RawMessage): ChatMessage {
   const thinking = raw.thinking ? cleanText(raw.thinking) : "";
   if (thinking) message.thinking = thinking;
   if (raw.mediaCount) message.mediaCount = raw.mediaCount;
+  const failures = raw.failures.map((f) => f.replace(/\s+/g, " ").replace(/^\s*warning\s*/i, "").replace(/^Failed\s*/, "Failed: ").trim());
+  if (failures.length) message.failures = failures;
   if (raw.permission) {
     // The question sits in the message just above the approval buttons.
     const question = text.split("\n").reverse().find((l) => COST.test(l) || l.endsWith("?")) ?? text;
@@ -118,4 +129,14 @@ export async function readTranscript(page: Page, options: { includeThinking?: bo
 /** The approval the agent is currently waiting on, if any. */
 export function pendingApproval(messages: ChatMessage[]): Approval | undefined {
   return [...messages].reverse().find((m) => m.approval?.pending)?.approval;
+}
+
+/**
+ * Generations Flow reported as failed since the user's last message. A failed video is never
+ * listed as project media: the chat's error tile is the only sign of it, and the agent may
+ * still say in words that the video is queued.
+ */
+export function failuresSinceLastPrompt(messages: ChatMessage[]): string[] {
+  const lastUser = messages.map((m) => m.role).lastIndexOf("user");
+  return messages.slice(lastUser + 1).flatMap((m) => m.failures ?? []);
 }
