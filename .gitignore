@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.flow-profile/
+captures/
+output/
+data/
+# Personal reference media (faces, third-party clips) never belongs in the repo
+reference/
