@@ -6,7 +6,7 @@ import { directorGuide, installSkill, readSkillFile, RESOURCE_PREFIX, skillFiles
 
 describe("flow-director skill", () => {
   it("lists SKILL.md and its references", () => {
-    expect(skillFiles()).toEqual(expect.arrayContaining(["SKILL.md", "references/prompting.md", "references/consistency.md", "references/editing.md"]));
+    expect(skillFiles()).toEqual(expect.arrayContaining(["SKILL.md", "references/prompting.md", "references/consistency.md", "references/editing.md", "references/recipes.md", "references/review.md", "references/formats.md", "references/styles.md", "references/narration.md"]));
   });
 
   it("has a name and description for Claude Code to load it by", () => {

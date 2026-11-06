@@ -45,6 +45,7 @@ export const CAPABILITIES: Capability[] = [
   { area: "Videos", feature: "Video-to-video edit, Omni 1.1 Flash", tool: "generate_video (source_video)", cost: "20 credits at 720p", plan: "free", notes: "Output keeps the source clip's length." },
   { area: "Videos", feature: "Still frame of a video (first, last, at a time), e.g. to start the next shot on", tool: "flow_frame", cost: "free", plan: "free", notes: "Decoded locally in Chrome; Flow's own Save frame is not used." },
   { area: "Videos", feature: "Download at full quality (mp4)", tool: "flow_wait / generate_video", cost: "free", plan: "free" },
+  { area: "Videos", feature: "Join clips into one video, with an optional music or voice-over track and fades", tool: "flow_assemble", cost: "free", plan: "free", notes: "Runs on this machine with ffmpeg; Flow's Scenebuilder timeline is not used." },
   { area: "Videos", feature: "Upscale video (1080p / 4K)", tool: null, cost: "unknown", plan: "paid", notes: "Not verified on this account yet." },
 
   { area: "Media", feature: "List a project's media (ids, uploaded/generated, references)", tool: "flow_assets", cost: "free", plan: "free" },

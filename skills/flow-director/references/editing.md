@@ -53,7 +53,7 @@ Use A when the exact performance matters, B when the shot can be reinterpreted o
 Flow's own Extend isn't available here. Instead: `flow_frame(at: "last")` on the clip, then a new `generate_video`
 with that frame as `start_frame` (no ingredients) and a prompt that picks up the action and repeats the character's
 fixed traits ("She keeps walking toward the door, the camera keeps tracking her..."). Tested: the new clip opens on
-the exact frame and the character holds. Join the clips in an editor; cut on motion to hide the seam.
+the exact frame and the character holds. Join the clips with `flow_assemble`, or in an editor to cut on motion and hide the seam.
 
 ## Small fixes
 
