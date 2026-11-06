@@ -1,8 +1,8 @@
-import { statSync } from "node:fs";
+import { mkdirSync, readdirSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { config } from "../config.js";
-import { openProject } from "./ui.js";
+import { config, projectOutputDir } from "../config.js";
+import { touchProject } from "../state/registry.js";
 
 /*
  * Download sizes and upscaling through the media viewer's download menu. For images Flow
@@ -21,7 +21,8 @@ export interface DownloadOption {
 }
 
 async function openViewer(page: Page, projectId: string, mediaId: string): Promise<void> {
-  await openProject(page, { projectId });
+  // The viewer is its own page, so going there directly saves loading the project first.
+  touchProject(projectId);
   await page.goto(`${new URL(config.flowUrl).origin}/project/${projectId}/edit/${mediaId}`, { waitUntil: "domcontentloaded" });
   // The download button stays disabled until the media has loaded.
   await page.locator('button[aria-label="Download media"]:not([disabled])').waitFor({ timeout: 60_000 });
@@ -62,8 +63,24 @@ export interface UpscaleResult {
   bytes: number;
 }
 
-/** Downloads a media item at the given size, upscaling it in Flow when the size calls for it. */
-export async function upscale(page: Page, projectId: string, mediaId: string, size: Size): Promise<UpscaleResult> {
+/** A file saved by an earlier upscale of the same media and size; Flow's result does not change. */
+function savedUpscale(dir: string, mediaId: string, size: Size): string | undefined {
+  const prefix = `${mediaId}-${size}.`;
+  const name = readdirSync(dir, { withFileTypes: true }).find((e) => e.isFile() && e.name.startsWith(prefix))?.name;
+  return name && path.join(dir, name);
+}
+
+/**
+ * Downloads a media item at the given size, upscaling it in Flow when the size calls for it.
+ * Flow takes ~15 s for 2K and longer for 4K with nothing to show meanwhile, so progress is
+ * reported every few seconds to tell the client the call is alive.
+ */
+export async function upscale(page: Page, projectId: string, mediaId: string, size: Size, onProgress?: (message: string) => void): Promise<UpscaleResult> {
+  const dir = projectOutputDir(projectId);
+  mkdirSync(dir, { recursive: true });
+  const saved = savedUpscale(dir, mediaId, size);
+  if (saved) return { mediaId, size: SIZES[size], file: saved, bytes: statSync(saved).size };
+  onProgress?.("opening the media in Flow");
   await openViewer(page, projectId, mediaId);
   await page.getByRole("button", { name: "Download media" }).click();
   await menuItems(page).first().waitFor({ timeout: 10_000 });
@@ -76,9 +93,13 @@ export async function upscale(page: Page, projectId: string, mediaId: string, si
   }
   const download = page.waitForEvent("download", { timeout: 300_000 });
   await menuItems(page).filter({ hasText: new RegExp(`^\\s*${SIZES[size]}\\b`) }).first().click();
-  const file = await download;
+  const startedAt = Date.now();
+  const ticker = setInterval(() => onProgress?.(`Flow is upscaling to ${SIZES[size]} (${Math.round((Date.now() - startedAt) / 1000)} s)`), 5_000);
+  const file = await download.finally(() => clearInterval(ticker));
   const ext = path.extname(file.suggestedFilename()) || ".bin";
-  const target = path.join(config.outputDir, `${mediaId}-${size}${ext}`);
-  await file.saveAs(target);
+  const target = path.join(dir, `${mediaId}-${size}${ext}`);
+  // Saved under a temporary name first, so a half-written file is never reused as finished.
+  await file.saveAs(`${target}.part`);
+  renameSync(`${target}.part`, target);
   return { mediaId, size: SIZES[size], file: target, bytes: statSync(target).size };
 }

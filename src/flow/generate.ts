@@ -4,7 +4,7 @@ import { getFlowPage, openFlowTab } from "../browser/connect.js";
 import { attachInputs, ensureUploaded, type AttachedInputs } from "./assets.js";
 import { attachCharacters } from "./characters.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
-import { readTranscript, type ChatMessage } from "./chat.js";
+import { AGENT_QUOTA_HELP, AgentQuotaError, assertNoNewQuotaNotice, forgetQuotaIfOver, quotaNotices, readTranscript, type ChatMessage } from "./chat.js";
 import { clearPrompt, download, openProject, sendPrompt, serialize, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 import { checkUploadable } from "./upload.js";
 
@@ -69,6 +69,7 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
   // A character's own reference images come back with the results; they are inputs, not results.
   const inputs = new Set([...attached.mediaIds, ...characters.flatMap((c) => c.imageIds)]);
   const before = (await readTranscript(page)).length;
+  const quotaBefore = await quotaNotices(page);
 
   const media = new Map<string, FlowMedia>();
   const fromChat = new Set<string>();
@@ -108,16 +109,25 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
   try {
     await sendPrompt(page, options.prompt);
     const deadline = Date.now() + timeoutMs;
+    let reloaded = false;
     while (Date.now() < deadline) {
       await page.waitForTimeout(500);
       if (chatError) throw new Error(`Flow agent request failed: ${chatError}`);
       if (!chatDoneAt) continue;
       const found = results();
+      if (found.length === 0) await assertNoNewQuotaNotice(page, quotaBefore);
       // Done as soon as every result has its full-size file and nothing changed for a moment;
       // otherwise give the full-size URLs up to settleMs after the agent finished.
       const allFull = found.length > 0 && found.every((m) => FULL_IMAGE.test(m.url));
       if (allFull && Date.now() - lastChangeAt > 1_500) break;
-      if (found.length > 0 && Date.now() - chatDoneAt > settleMs) break;
+      if (found.length > 0 && Date.now() - chatDoneAt > settleMs) {
+        // Some tabs (often the last of a batch) only ever get the small preview. Reloading makes
+        // Flow fetch the project's media again, full-size links included, before giving up.
+        if (reloaded) break;
+        reloaded = true;
+        chatDoneAt = Date.now();
+        await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      }
       if (found.length === 0 && Date.now() - chatDoneAt > 30_000) break;
     }
     if (results().length === 0) {
@@ -134,7 +144,8 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
     page.off("requestfailed", onChatEnd);
   }
 
-  const files = await download(page, results());
+  const files = await download(page, projectId, results());
+  await forgetQuotaIfOver(page);
   const messages = (await readTranscript(page)).slice(before);
   const reply = messages
     .filter((m) => m.role === "agent")
@@ -174,8 +185,10 @@ export function generateBatch(
 
     const results: BatchResult[] = new Array(jobs.length);
     let next = 0;
+    // The daily agent limit applies to every tab, so the first job that hits it stops the rest.
+    let quotaReached = false;
     const worker = async (tab: Page) => {
-      while (next < jobs.length) {
+      while (next < jobs.length && !quotaReached) {
         const index = next++;
         const job = jobs[index];
         options.onProgress?.(`started ${index + 1}/${jobs.length}`);
@@ -189,7 +202,8 @@ export function generateBatch(
           } catch (err) {
             const error = err instanceof Error ? err.message.split("\n")[0] : String(err);
             results[index] = { index, prompt: job.prompt, ok: false, error };
-            if (!/without producing media/.test(error)) break;
+            if (err instanceof AgentQuotaError) quotaReached = true;
+            if (quotaReached || !/without producing media/.test(error)) break;
           }
         }
         options.onProgress?.(`finished ${results.filter(Boolean).length}/${jobs.length}`);
@@ -201,6 +215,9 @@ export function generateBatch(
       await Promise.all(tabs.map((tab) => worker(tab)));
     } finally {
       await Promise.all(tabs.slice(1).map((tab) => tab.close().catch(() => {})));
+    }
+    for (let index = 0; index < jobs.length; index++) {
+      results[index] ??= { index, prompt: jobs[index].prompt, ok: false, error: `Not started: ${AGENT_QUOTA_HELP}` };
     }
     return results;
   });

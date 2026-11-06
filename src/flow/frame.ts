@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { BrowserContext } from "playwright-core";
 import { getBrowser } from "../browser/connect.js";
-import { config } from "../config.js";
+import { config, projectOutputDir } from "../config.js";
 import { waitForMedia } from "./session.js";
 import { serialize } from "./ui.js";
 
@@ -92,8 +92,10 @@ export async function extractFrame(options: { video: string; projectId?: string;
   const at = options.at ?? "last";
   let file = options.video;
   if (UUID.test(options.video)) {
-    file = path.join(config.outputDir, `${options.video}.mp4`);
-    if (!existsSync(file)) {
+    // Downloads go in the project's folder; older versions saved them directly in the output folder.
+    const saved = [options.projectId && path.join(projectOutputDir(options.projectId), `${options.video}.mp4`), path.join(config.outputDir, `${options.video}.mp4`)];
+    file = saved.find((f): f is string => !!f && existsSync(f)) ?? "";
+    if (!file) {
       if (!options.projectId) throw new Error("A media id needs its project_id, to download the video first.");
       const waited = await serialize(() => waitForMedia({ projectId: options.projectId!, mediaIds: [options.video], timeoutMs: 60_000 }));
       const got = waited.files.find((f) => f.id === options.video);

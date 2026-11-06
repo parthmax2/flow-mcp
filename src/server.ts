@@ -119,7 +119,7 @@ server.registerTool(
     title: "Google Flow health check",
     description:
       "Checks that everything works and names the problem if not: state 'ready', or 'browser_down', 'signed_out', " +
-      "'challenge' (Google wants a verification), 'blocked', or 'ui_changed' (Flow's page changed; lists which controls " +
+      "'challenge' (Google wants a verification), 'blocked', 'agent_quota' (the daily agent chat limit is used up), or 'ui_changed' (Flow's page changed; lists which controls " +
       "are missing). Includes the signed-in account, credits and a fix to tell the user. Run it first, and whenever a " +
       "tool fails unexpectedly. Free; takes about 30 s.",
     annotations: { readOnlyHint: true },
@@ -313,11 +313,11 @@ server.registerTool(
       size: z.enum(Object.keys(SIZES) as [Size, ...Size[]]).optional().describe("1k (original), 2k or 4k; omit to list the options"),
     },
   },
-  async ({ project_id, media_id, size }) =>
+  async ({ project_id, media_id, size }, extra) =>
     json(
       await serialize(async () => {
         const page = await getFlowPage();
-        return size ? upscale(page, project_id, media_id, size) : { options: await downloadOptions(page, project_id, media_id) };
+        return size ? upscale(page, project_id, media_id, size, progressReporter(extra)) : { options: await downloadOptions(page, project_id, media_id) };
       }),
     ),
 );

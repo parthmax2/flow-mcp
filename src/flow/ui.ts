@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { config } from "../config.js";
+import { config, projectOutputDir } from "../config.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
 import { parseBatchExecute, type FlowMedia } from "./batchexecute.js";
@@ -144,17 +144,35 @@ const EXT: Record<string, string> = {
   "video/mp4": "mp4",
 };
 
-export async function download(page: Page, items: FlowMedia[]): Promise<DownloadedMedia[]> {
-  mkdirSync(config.outputDir, { recursive: true });
-  const out: DownloadedMedia[] = [];
-  for (const m of items) {
-    // The tab's request context carries the signed-in cookies some media URLs require.
-    const res = await page.context().request.get(m.url);
-    if (!res.ok()) throw new Error(`Downloading ${m.id} failed with HTTP ${res.status()}`);
-    const type = (res.headers()["content-type"] ?? "").split(";")[0];
-    const file = path.join(config.outputDir, `${m.id}.${EXT[type] ?? "bin"}`);
-    writeFileSync(file, await res.body());
-    out.push({ ...m, file });
+const DOWNLOAD_ATTEMPTS = 3;
+
+async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<DownloadedMedia> {
+  let lastError = "";
+  for (let attempt = 1; attempt <= DOWNLOAD_ATTEMPTS; attempt++) {
+    try {
+      // The tab's request context carries the signed-in cookies some media URLs require. Videos
+      // can take longer than Playwright's default 30 s request limit on a slow connection.
+      const res = await page.context().request.get(m.url, { timeout: 180_000 });
+      if (res.ok()) {
+        const type = (res.headers()["content-type"] ?? "").split(";")[0];
+        const file = path.join(dir, `${m.id}.${EXT[type] ?? "bin"}`);
+        writeFileSync(file, await res.body());
+        return { ...m, file };
+      }
+      lastError = `HTTP ${res.status()}`;
+      // A 4xx (expired or forbidden link) will not change on retry.
+      if (res.status() < 500 && res.status() !== 429) break;
+    } catch (err) {
+      lastError = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    }
+    if (attempt < DOWNLOAD_ATTEMPTS) await new Promise((r) => setTimeout(r, 1_000 * attempt));
   }
-  return out;
+  throw new Error(`Downloading ${m.id} failed (${lastError}). The media is still in the Flow project; flow_wait with its media id downloads it again.`);
+}
+
+/** Downloads the files at the same time into the project's folder; results keep the order of items. */
+export async function download(page: Page, projectId: string, items: FlowMedia[]): Promise<DownloadedMedia[]> {
+  const dir = projectOutputDir(projectId);
+  mkdirSync(dir, { recursive: true });
+  return Promise.all(items.map((m) => downloadOne(page, dir, m)));
 }

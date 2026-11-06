@@ -31,4 +31,7 @@ export const config = {
   chromePath: process.env.FLOW_CHROME_PATH,
 };
 
+/** Each project's downloads go in their own folder so work from different projects never mixes. */
+export const projectOutputDir = (projectId: string) => path.join(config.outputDir, projectId);
+
 export const cdpEndpoint = () => `http://127.0.0.1:${config.cdpPort}`;

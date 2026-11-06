@@ -15,8 +15,17 @@ npx -y @parthmax/flow-mcp status
 | `challenge` | Google wants a verification; finish it in the Chrome window |
 | `blocked` | Google is blocking the account or the request |
 | `ui_changed` | Flow's page changed; the report lists the controls that went missing |
+| `agent_quota` | The account used up Flow's daily agent chat limit; wait a day or switch accounts (below) |
 
 ## Common problems
+
+- **"You've reached your Flow Agent quota limit":** Flow allows only so many agent chat messages per
+  account per day. Requests stop with that message, nothing is generated and no credits are spent;
+  downloads and upscales still work. Wait until tomorrow, upgrade your plan, or switch accounts:
+  1. In the Flow Chrome window, click your profile picture (top right) and sign out.
+  2. Sign in with the other Google account (or ask your assistant to run `flow_sign_in`).
+  3. Ask your assistant to run `flow_status`; it should say `ready` with the new email.
+  Projects belong to the account that made them, so start new projects after switching.
 
 - **Tools fail or say nobody is signed in:** run `npx -y @parthmax/flow-mcp setup` again and sign in, or
   ask your assistant to run `flow_sign_in`.
