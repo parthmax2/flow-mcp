@@ -9,7 +9,7 @@ make an 8 second video of a paper boat, max 10 credits
 ```
 
 While it works, a Chrome window shows Flow doing the job. Leave that window open, and don't type in its
-Flow tab during a request. Downloads are saved to `~/.flow-mcp/output` by default.
+Flow tab during a request. Downloads are saved to `~/.flow-mcp/output/<project_id>/` by default, one folder per project.
 
 ## Credits
 

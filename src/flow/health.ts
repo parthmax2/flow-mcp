@@ -4,6 +4,8 @@ import { config } from "../config.js";
 import { signedInEmail } from "./account.js";
 import { listProjects } from "./projects.js";
 import { readCredits } from "./ui.js";
+import { AGENT_QUOTA_HELP } from "./chat.js";
+import { quotaReachedAt } from "../state/quota.js";
 
 /*
  * A health check that names the problem instead of letting tools time out: is Chrome there,
@@ -11,7 +13,7 @@ import { readCredits } from "./ui.js";
  * controls this tool relies on still exist. It runs in its own tab and closes it afterwards.
  */
 
-export type HealthState = "ready" | "browser_down" | "signed_out" | "challenge" | "blocked" | "ui_changed";
+export type HealthState = "ready" | "browser_down" | "signed_out" | "challenge" | "blocked" | "ui_changed" | "agent_quota";
 
 export interface UiCheck {
   control: string;
@@ -107,6 +109,19 @@ export async function checkHealth(): Promise<Health> {
     if (recent) {
       await tab.goto(`${new URL(config.flowUrl).origin}/project/${recent.id}`, { waitUntil: "domcontentloaded" });
       for (const [control, locate] of PROJECT_CONTROLS) ui.push({ control, where: "project", ok: await present(() => locate(tab)) });
+    }
+
+    const limitedAt = quotaReachedAt(email);
+    if (limitedAt) {
+      return {
+        state: "agent_quota",
+        ok: false,
+        email,
+        credits,
+        ui,
+        details: `Signed in as ${email}; Flow's daily agent limit was reached at ${limitedAt.toLocaleString()}.`,
+        fix: AGENT_QUOTA_HELP,
+      };
     }
 
     const missing = ui.filter((c) => !c.ok);

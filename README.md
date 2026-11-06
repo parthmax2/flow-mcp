@@ -55,7 +55,7 @@ edit my photo C:\photos\me.jpg into a winter scene
 make an 8 second video of a paper boat, max 10 credits
 ```
 
-A Chrome window shows Flow doing the job; leave it open. Files are saved to `~/.flow-mcp/output`. If
+A Chrome window shows Flow doing the job; leave it open. Files are saved to `~/.flow-mcp/output/<project_id>/`. If
 something fails, `npx -y @parthmax/flow-mcp status` names the problem and the fix.
 
 ## Made with flow-mcp

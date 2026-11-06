@@ -5,7 +5,7 @@ flow-mcp needs no configuration after `setup`. These environment variables chang
 | Variable | Default | Purpose |
 |---|---|---|
 | `FLOW_HOME` | `~/.flow-mcp` | State folder: Chrome profile, registry, downloads, captures |
-| `FLOW_OUTPUT_DIR` | `$FLOW_HOME/output` | Where downloaded media is saved |
+| `FLOW_OUTPUT_DIR` | `$FLOW_HOME/output` | Where downloaded media is saved, in one folder per project |
 | `FLOW_CDP_PORT` | `9222` | Local port of the controlled Chrome window |
 | `FLOW_CHROME_PATH` | auto-detected | Chrome executable, if it is not found |
 | `FFMPEG_PATH` | `ffmpeg` on the PATH | The ffmpeg program `flow_assemble` uses to join clips |

@@ -2,7 +2,7 @@ import type { Page } from "playwright-core";
 import { tapRpcs, type RpcTap } from "../browser/rpc.js";
 import { getFlowPage } from "../browser/connect.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
-import { failuresSinceLastPrompt, pendingApproval, readTranscript, type Approval, type ChatMessage } from "./chat.js";
+import { assertNoNewQuotaNotice, failuresSinceLastPrompt, forgetQuotaIfOver, pendingApproval, quotaNotices, readTranscript, type Approval, type ChatMessage } from "./chat.js";
 import { attachInputs, type AttachedInputs } from "./assets.js";
 import { attachCharacters } from "./characters.js";
 import { clearPrompt, download, openProject, sendPrompt, waitForAgentTurn, type DownloadedMedia, type ProjectChoice } from "./ui.js";
@@ -139,10 +139,13 @@ export async function chatTurn(options: ChatOptions): Promise<ChatResult> {
     const attached = await attachInputs(page, projectId, { files: options.attachments, mediaIds: options.mediaIds, confirmRights: options.confirmRights });
     await attachCharacters(page, options.characters ?? []);
     const before = (await readTranscript(page)).length;
+    const quotaBefore = await quotaNotices(page);
     const exclude = new Set([...watch.found.keys(), ...attached.mediaIds]);
     const since = Date.now() / 1000 - CLOCK_SKEW_S;
     await sendPrompt(page, options.message);
     const turn = await finishTurn(page, projectId, before, watch, since, exclude, !!options.includeThinking);
+    await assertNoNewQuotaNotice(page, quotaBefore);
+    await forgetQuotaIfOver(page);
     return { ...turn, ...(attached.mediaIds.length ? { inputs: attached } : {}) };
   } finally {
     await watch.stop();
@@ -265,7 +268,7 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
     }
     const items = tracked();
     const ready = items.filter(isFullSize);
-    const files = await download(page, ready);
+    const files = await download(page, projectId, ready);
     options.onProgress?.(`${files.length} file(s) downloaded`, 100);
     const messages = (await readTranscript(page)).slice(before);
     const pending = items.filter((m) => !isFullSize(m)).map(summary);

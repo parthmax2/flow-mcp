@@ -1,4 +1,6 @@
 import type { Page } from "playwright-core";
+import { clearQuotaReached, quotaReachedAt, recordQuotaReached } from "../state/quota.js";
+import { signedInEmail } from "./account.js";
 
 /*
  * Reading the Flow agent chat as structured messages, so a connected AI sees exactly what
@@ -139,4 +141,51 @@ export function pendingApproval(messages: ChatMessage[]): Approval | undefined {
 export function failuresSinceLastPrompt(messages: ChatMessage[]): string[] {
   const lastUser = messages.map((m) => m.role).lastIndexOf("user");
   return messages.slice(lastUser + 1).flatMap((m) => m.failures ?? []);
+}
+
+/*
+ * Flow limits how many agent chat messages an account can send per day. When the limit is
+ * reached the panel shows a notice ("You've reached your Flow Agent quota limit. Switch to
+ * manual prompting or come back tomorrow") instead of a reply, and nothing is generated.
+ * The notice is not a regular message row, so it is counted in the panel's text; comparing
+ * counts before and after sending keeps an old notice in the history from being mistaken
+ * for a new one.
+ */
+const AGENT_QUOTA = /reached your Flow Agent quota limit/gi;
+
+export const AGENT_QUOTA_HELP =
+  "Flow's daily agent limit is reached for this Google account, so Flow will not answer more requests today. " +
+  "Nothing was generated and no credits were spent. Wait until tomorrow, upgrade the plan in Flow, or switch " +
+  "to another Google account: in the Flow Chrome window click the profile picture (top right), sign out, sign " +
+  "in with the other account, then run flow_status. Project ids belong to an account, so start new projects there.";
+
+export class AgentQuotaError extends Error {
+  constructor() {
+    super(AGENT_QUOTA_HELP);
+    this.name = "AgentQuotaError";
+  }
+}
+
+export const countQuotaNotices = (panelText: string) => panelText.match(AGENT_QUOTA)?.length ?? 0;
+
+/** How many daily-limit notices the agent panel shows now. */
+export async function quotaNotices(page: Page): Promise<number> {
+  return countQuotaNotices(await page.locator("flow-agent-panel").first().innerText().catch(() => ""));
+}
+
+/**
+ * Throws AgentQuotaError when a new daily-limit notice appeared since `before` was counted,
+ * remembering it for the account so flow_status can report it later.
+ */
+export async function assertNoNewQuotaNotice(page: Page, before: number): Promise<void> {
+  if ((await quotaNotices(page)) <= before) return;
+  const email = await signedInEmail(page);
+  if (email) recordQuotaReached(email);
+  throw new AgentQuotaError();
+}
+
+/** After a request Flow answered: the account's limit, if one was remembered, is over. */
+export async function forgetQuotaIfOver(page: Page): Promise<void> {
+  const email = await signedInEmail(page);
+  if (email && quotaReachedAt(email)) clearQuotaReached(email);
 }

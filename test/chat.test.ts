@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanText, failuresSinceLastPrompt, pendingApproval, type ChatMessage } from "../src/flow/chat.js";
+import { cleanText, countQuotaNotices, failuresSinceLastPrompt, pendingApproval, type ChatMessage } from "../src/flow/chat.js";
 
 describe("cleanText", () => {
   it("drops icon names and agent controls, keeping the message", () => {
@@ -50,4 +50,14 @@ describe("cleanText with character attachments", () => {
   it("drops character chip icons from user messages", () => {
     expect(cleanText("accessibility_new\naccessibility_new\nMara and Theo walk", "user")).toBe("Mara and Theo walk");
   });
+});
+
+describe("daily agent limit", () => {
+  const notice = "You've reached your Flow Agent quota limit. Switch to manual prompting or come back tomorrow to chat more!\nUpgrade options";
+
+  it("counts notices so an old one is not taken for a new one", () => {
+    expect(countQuotaNotices("Here is your image.")).toBe(0);
+    expect(countQuotaNotices(`${notice}\nmake a fox\n${notice}`)).toBe(2);
+  });
+
 });
