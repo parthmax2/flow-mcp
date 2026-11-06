@@ -33,7 +33,12 @@ claymation, Pixar-style 3D, oil painting). Keep these identical across shots: pa
 - `SFX: thunder cracks in the distance`
 - `Ambient noise: the hum of a starship bridge`
 - Music: "a soft piano score", or "No music". Say "No dialogue" when you want none; otherwise the model may invent some.
-- Keep each line short enough to speak in the clip (about 2-3 words per second).
+- Keep each line short enough to speak in the clip at a natural pace: about 2.5 words per second, finishing about
+  a second before the end. That is roughly 15-18 words for an 8 s clip and 20-23 for 10 s, across all speakers.
+  Over that, the model rushes or cuts the last words; well under it leaves dead air. If a line came out cut off or
+  rushed, rewrite it shorter; don't ask for faster speech.
+- Say who speaks and when the line starts ("she says right away", "after a pause he answers"), and give a delivery
+  cue (warm, dry, whispered, excited) once per speaker.
 
 ### Several shots in one clip: timestamps
 ```
@@ -44,12 +49,38 @@ claymation, Pixar-style 3D, oil painting). Keep these identical across shots: pa
 ```
 For one unbroken take instead, say "single continuous shot, no cuts".
 
+### From a start frame
+The frame already shows the subject, place and light. Spend the prompt on what moves: the camera move first, then
+the action in one or two beats, then the sound. Repeat only the fixed traits that must not change (face, outfit,
+product label). Re-describing the whole still invites the model to drift from it.
+
+### Several references at once
+When a request attaches more than one image, open the prompt by saying what each one is for, in attachment order:
+"Image 1 is Mara's face and outfit. Image 2 is the product. Image 3 is the style only." Then refer to them by those
+names. One job per reference: a style image doesn't lend its people, a character sheet doesn't lend its background.
+
 ### Exclusions
 Describe what you want rather than what you don't: "an empty desert road with no buildings" beats "no man-made
 structures". Omni has no negative-prompt field; write exclusions into the prompt ("No text. No extra people.").
 
 ### On-screen text
 Quote the exact words: `a neon sign that reads "OPEN 24H"`. Keep it short and in English; other scripts can come out garbled.
+
+## Fix the must-haves, leave the scene loose (photoreal work)
+
+Tested with the user rating blind pairs (November 2026): for photoreal product, lifestyle, UGC and marketplace
+images, short mood-led prompts beat long checklists. The long ones came out staged, clean and plastic; the short
+ones got real clutter, natural faces and material texture. For stories and thumbnails the specific prompt won,
+because the planned moment mattered.
+
+So for photoreal images:
+- **Pin down only what must be right:** aspect, the subject and its key action, product fidelity, the text rule,
+  anything the plan depends on.
+- **Describe the rest in a line of mood and place** ("a lived-in apartment on a grey morning") and let the model
+  furnish it. Don't list props, wall colors and plants one by one.
+- **Ask for realism:** "real photo, natural skin texture, real-life imperfections, everyday clutter, not staged".
+  For UGC add "shot on a phone, candid". For products: "real material texture, subtle reflections and wear".
+- Keep the detailed style for illustration, story keyframes and thumbnails, where composition is the point.
 
 ## Image prompts (Nano Banana)
 

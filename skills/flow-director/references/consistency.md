@@ -24,7 +24,11 @@ Rules that matter:
 - **Fixed traits stay word-for-word the same** in every prompt (copy them from the plan). Change only clothing,
   setting and action, and only on purpose.
 - From the user's own photo: ask for rights first, then make a clean sheet from it ("same person, plain grey
-  background, full body") rather than using a busy snapshot directly.
+  background, full body") rather than using a busy snapshot directly. The best source photos show one person, the
+  face sharp and unobstructed (no sunglasses, hats over the face or heavy filters), in even light. If they have
+  several, pick a front view and a three-quarter view over many similar selfies.
+- To keep a real face from being prettified or averaged, say so: "Keep this exact person: same face shape, eyes,
+  nose, mouth, jawline, skin tone, hairline and hair. Don't beautify or restyle the face. Expression: [x]."
 
 ## 2. Use the character in every shot
 

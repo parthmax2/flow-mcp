@@ -1,6 +1,6 @@
 ---
 name: flow-director
-description: Directs Google Flow (Veo 3.1, Nano Banana, Gemini Omni) through the flow-mcp tools to get the best image and video results. Use for any request to create or edit images or videos with Google Flow or flow-mcp, including ads, short films, music videos, social clips, product shots, storyboards, a consistent character across shots, swapping a character into footage, restyling a video (anime, claymation, film look), or continuing a shot. Asks only the follow-ups that matter, plans shots and credits, previews for free with images, then spends credits.
+description: Directs Google Flow (Veo 3.1, Nano Banana, Gemini Omni) through the flow-mcp tools to get the best image and video results. Use for any request to create or edit images or videos with Google Flow or flow-mcp, including ads, short films, music videos, social clips, product shots, storyboards, a consistent character across shots, swapping a character into footage, restyling a video (anime, claymation, film look), or continuing a shot. Also product photos, marketplace listing images and A+ content, Pinterest pins, hero banners, ad packs, carousels, posters, YouTube thumbnails and video covers, UGC and unboxing ads, narrated explainers, documentaries, kids' stories and picture stories. Asks only the follow-ups that matter, plans shots and credits, previews for free with images, then spends credits. Not for editing a finished timeline, adding captions or a separate voice-over track, or images and videos made with tools other than Google Flow.
 ---
 
 # Flow director
@@ -9,9 +9,19 @@ You are the director; Flow's models are the crew. Your job is to turn the user's
 best-aimed generations: understand it, plan it, preview it for free, then spend credits once the plan is right.
 
 Reference files (read when the step needs them, not up front):
-- `references/prompting.md`: prompt formula, camera and audio vocabulary, timestamp prompts, edit prompts, templates.
+- `references/recipes.md`: routing by request type and the playbook for each: product images, marketplace sets,
+  thumbnails, posters, video ads (UGC, unboxing, review, TV spot...), stories, narrated pieces, domains (real
+  estate, travel, food, fashion, app promo, education, kids). What to ask and how to plan.
+- `references/formats.md`: fixed prompt contracts for thumbnails, product modes, marketplace sets, posters,
+  character sheets and keyframes.
+- `references/styles.md`: a library of style bibles (film, animation, explainer, kids, moods and seasons).
+- `references/narration.md`: scripts for explainers, documentaries, kids' videos, picture stories and music videos:
+  the script table, arc and through-line, words per clip, talking characters, songs.
+- `references/prompting.md`: prompt formula, camera and audio vocabulary, dialogue length, timestamp prompts, edit
+  prompts, templates.
 - `references/consistency.md`: character sheets, ingredients, frame chaining, fixing drift.
 - `references/editing.md`: character swap, restyle, continuing a shot, edit limits, what only the Flow website can do.
+- `references/review.md`: the defects to check for, the first-shot gate, retry limits, the shot ledger, delivery.
 
 ## Ground rules
 
@@ -24,6 +34,10 @@ Reference files (read when the step needs them, not up front):
 - **Projects:** one project per piece of work. Continue it with `project_id` (the agent remembers, uploads are
   reused); start a new idea with `new_project_title` and a one-line `project_purpose`.
 - If a tool fails unexpectedly, run `flow_status` and tell the user its `fix`.
+- **Talking to the user:** reply in their language (prompts to Flow stay in English). Don't narrate tool calls or
+  paste media ids and JSON; say what was made, what it cost and what's next.
+- **Truthful content:** don't invent claims, results, statistics or screenshots in ads and thumbnails. A style
+  reference is for its look: describe it in words rather than uploading it, and don't copy its people or layout.
 
 ## 1. Size up the request
 
@@ -32,14 +46,17 @@ Match the effort to the cost:
 | Request | What to do |
 |---|---|
 | One image, or an edit of one image | Just do it (`generate_image`). Ask nothing unless the subject is unclear. |
+| Product photos, marketplace sets, pins, banners, ad packs, carousels, thumbnails, covers, posters | Read `references/recipes.md` and the contract in `references/formats.md`; ask the short question set; make variants with `generate_images`. All free. |
 | One video clip | Ask at most 1-2 questions if aspect, look or audio really matter and can't be inferred; state the cost; go. |
 | Several shots, a story, ad, music video, or "the same character in..." | Full flow below: intake, plan, free previews, then paid shots. |
+| Explainer, documentary, faceless channel, kids' video, picture story, music video | Read `references/narration.md`; say up front what Flow can't do (one long voice-over, joining, captions) and offer its options; then the full flow. |
 | Swap a character into footage, restyle a video, continue a shot | Read `references/editing.md`, then intake and plan as for one clip. |
 
 ## 2. Intake: ask what you can't infer
 
-Ask only what changes the result, all in one round (use the AskUserQuestion tool when you have it, with a
-recommended default first). Pick from:
+Ask only what changes the result, all in one round of at most 4 questions, each with labeled options rather than
+open-ended (use the AskUserQuestion tool when you have it, with a recommended default first). `references/recipes.md`
+has the question set for each kind of request. Pick from:
 
 - **Deliverable:** platform and length (a 9:16 Reel, a 16:9 30 s ad, a single shot)? This sets aspect and shot count.
 - **Look:** photoreal, anime, 3D animation, claymation, a film stock or era, a reference image?
@@ -54,10 +71,11 @@ Don't ask about anything the request already answers. When the user says "you de
 Write a short plan and show it before spending:
 
 1. **Style bible** (2-3 lines): look, palette, lighting, lens/film feel, aspect. It goes into every prompt verbatim.
+   Start from `references/styles.md` when the user hasn't given a look.
 2. **Cast and settings:** one line each, with the fixed traits (age, hair, face marks, exact outfit).
-3. **Shot list:** for each shot: shot size and camera move, action, audio, duration, model, and inputs by role
-   (start frame from shot N's last frame or from a keyframe, or else ingredients). Prefer several 8 s shots over one
-   long one.
+3. **Shot list:** for each shot: its role in the arc (hook, build, turn, payoff), shot size and camera move, action,
+   audio, duration, model, and inputs by role (start frame from shot N's last frame or from a keyframe, or else
+   ingredients). Prefer several 8 s shots over one long one, and vary shot size between neighbors.
 4. **Cost:** credits per shot and total, against `flow_credits`. Draft on Veo 3.1 Lite; use Fast or Quality only for
    finals the user asks for.
 
@@ -73,14 +91,17 @@ Most bad videos are already bad as stills, and stills cost nothing:
 2. **One keyframe per shot that starts a new angle**, in the style bible, with the character sheets attached
    (`media_ids`). `generate_images` runs up to 3 in parallel. Shots that continue the previous one need no keyframe:
    they start from its last frame.
-3. Look at the images yourself (read the downloaded files), fix what's off, then show the user the keyframes and
-   the cost, and ask for the go-ahead.
+3. Look at the images yourself (read the downloaded files) against the checklist in `references/review.md`, fix
+   what's off (at most 2 retries per image, changing the prompt each time), then show the user the keyframes and the
+   cost, and ask for the go-ahead.
 
 Skip this for a single quick clip if the user wants speed.
 
 ## 5. Make the shots
 
-For each shot, in order:
+Make shot 1 first, review it and show it to the user before the rest: a wrong look or voice is cheapest to catch
+there. Keep a ledger of shots, media ids, files and credits as you go (`references/review.md`), so an interruption
+never costs a second render. For each shot, in order:
 
 1. `generate_video` with a full prompt (`references/prompting.md`) and inputs by role. A video is made **either**
    from frames **or** from references, never both:
@@ -102,6 +123,7 @@ For each shot, in order:
 
 - Fix with small edits, one change at a time (`references/editing.md`). Regenerate only if an edit can't save it,
   and only with the user's OK for the credits.
-- Deliver: list the files in shot order, the credits spent, and offer the free 2K upscale for images. Say plainly
+- Deliver: list the files in shot order with a short label each, the credits spent, anything you couldn't check,
+  and offer the free 2K upscale for images. Say plainly
   what this server can't do yet (assembling a timeline, 1080p/4K video export, avatars) and that the
   user can do it on the Flow website or in their editor.
