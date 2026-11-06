@@ -12,6 +12,7 @@ import { chatTurn, decide, transcript, waitForMedia } from "./flow/session.js";
 import { openProject, readCredits, serialize, type ProjectChoice } from "./flow/ui.js";
 import { readInstructions, readSettings, setInstructions, updateSettings } from "./flow/settings.js";
 import { extractFrame } from "./flow/frame.js";
+import { assemble } from "./assemble.js";
 import { createCharacter, listCharacters, listVoices, updateCharacter } from "./flow/characters.js";
 import { directorGuide, readSkillFile, RESOURCE_PREFIX, skillFiles } from "./director.js";
 import { findDuplicateUploads, previewTrash, trashMedia } from "./flow/trash.js";
@@ -586,6 +587,37 @@ server.registerTool(
     annotations: { readOnlyHint: true },
   },
   async ({ video, project_id, at }) => json(await extractFrame({ video, projectId: project_id, at })),
+);
+
+server.registerTool(
+  "flow_assemble",
+  {
+    title: "Join clips into one video",
+    description:
+      "Joins finished clips, in the order given, into one mp4 on this machine with ffmpeg, optionally with a music " +
+      "or voice-over file mixed over the whole video and fades at the start and end. Clips are scaled to the first " +
+      "clip's size; clips without sound get silence. Nothing is sent to Flow and no credits are spent. Needs ffmpeg " +
+      "(or FFMPEG_PATH). Use the local mp4 files that flow_wait or generate_video saved.",
+    inputSchema: {
+      clips: z.array(z.string().min(1)).min(1).max(100).describe("Local video files in the order they play"),
+      output: z.string().min(1).optional().describe("Where to save the .mp4 (default: the output folder's assembled/)"),
+      audio: z.string().min(1).optional().describe("A local music or voice-over file to lay over the whole video"),
+      audio_volume: z.number().min(0).max(2).optional().describe("Volume of the added track (default 1)"),
+      clip_audio_volume: z.number().min(0).max(2).optional().describe("Volume of the clips' own sound (default 1; 0 mutes it)"),
+      fade: z.number().min(0).max(5).optional().describe("Seconds of fade in and out at the ends (default 0)"),
+    },
+  },
+  async (a) =>
+    json(
+      await assemble({
+        clips: a.clips,
+        output: a.output,
+        audio: a.audio,
+        audioVolume: a.audio_volume,
+        clipAudioVolume: a.clip_audio_volume,
+        fade: a.fade,
+      }),
+    ),
 );
 
 server.registerPrompt(

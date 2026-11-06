@@ -49,7 +49,7 @@ Match the effort to the cost:
 | Product photos, marketplace sets, pins, banners, ad packs, carousels, thumbnails, covers, posters | Read `references/recipes.md` and the contract in `references/formats.md`; ask the short question set; make variants with `generate_images`. All free. |
 | One video clip | Ask at most 1-2 questions if aspect, look or audio really matter and can't be inferred; state the cost; go. |
 | Several shots, a story, ad, music video, or "the same character in..." | Full flow below: intake, plan, free previews, then paid shots. |
-| Explainer, documentary, faceless channel, kids' video, picture story, music video | Read `references/narration.md`; say up front what Flow can't do (one long voice-over, joining, captions) and offer its options; then the full flow. |
+| Explainer, documentary, faceless channel, kids' video, picture story, music video | Read `references/narration.md`; say up front what Flow can't do (one long voice-over, captions) and offer its options; `flow_assemble` joins the clips; then the full flow. |
 | Swap a character into footage, restyle a video, continue a shot | Read `references/editing.md`, then intake and plan as for one clip. |
 
 ## 2. Intake: ask what you can't infer
@@ -125,5 +125,9 @@ never costs a second render. For each shot, in order:
   and only with the user's OK for the credits.
 - Deliver: list the files in shot order with a short label each, the credits spent, anything you couldn't check,
   and offer the free 2K upscale for images. Say plainly
-  what this server can't do yet (assembling a timeline, 1080p/4K video export, avatars) and that the
-  user can do it on the Flow website or in their editor.
+  what this server can't do yet (captions, 1080p/4K video export, avatars) and that the user can do it on the
+  Flow website or in their editor.
+- For a multi-shot piece, offer to join the approved clips into one video with `flow_assemble` (free, local):
+  clips in shot order, plus a music or voice-over file if the user has one (`audio`, with `clip_audio_volume`
+  lowered or 0 under a voice-over), and a short `fade` (0.5 s) for a finished feel. Check a frame or two of the
+  joined file before delivering it.

@@ -65,6 +65,11 @@ Only attach files you own or may use.
 `flow_frame` saves a video's first, last or timed frame as a PNG, so the next shot can start where the
 last one ended.
 
+`flow_assemble` joins finished clips into one mp4 on your computer, in the order you give. It can lay a
+music or voice-over file over the whole video, turn the clips' own sound down or off, and fade in and out.
+Clips are scaled to the first clip's size, and clips without sound get silence. It needs
+[ffmpeg](https://ffmpeg.org/download.html) (or `FFMPEG_PATH`); nothing is sent to Flow and it costs no credits.
+
 ## Characters
 
 `flow_characters` lists Flow characters, creates one from a project image, and sets its name, notes and
@@ -91,6 +96,7 @@ voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `gen
 | `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
 | `generate_video` | Starts a video within budget; inputs take a role (see above) | quoted credits |
 | `flow_frame` | Saves a video's first, last or timed frame as PNG | free |
+| `flow_assemble` | Joins clips into one mp4 on your computer, with optional music or voice-over and fades (needs ffmpeg) | free |
 | `flow_characters` | Lists, creates and changes Flow characters: name, notes, voice; lists voices | free |
 | `flow_capabilities` | Lists everything Flow offers and what this server covers | free |
 

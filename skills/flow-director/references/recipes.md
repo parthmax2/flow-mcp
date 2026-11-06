@@ -130,7 +130,8 @@ table in `narration.md` (arc roles, through-line, alternating shot sizes). Music
 
 ## Narrated piece: explainer, documentary, channel, kids, picture story
 
-Read `narration.md`. Tell the user up front what Flow can't do (one long voice-over, joining, captions) and offer
+Read `narration.md`. Tell the user up front what Flow can't do (one long voice-over, captions; `flow_assemble`
+joins the clips) and offer
 options A (spoken in each clip), B (silent clips for their voice-over) or C (free picture story). Pick a style from
 `styles.md` → explainer looks. Explainers are calm and diagram-led; channel stories vary shots and cut faster.
 

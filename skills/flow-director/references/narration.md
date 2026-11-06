@@ -4,13 +4,14 @@ For explainers, documentaries, story channels, picture stories, kids' videos and
 before any keyframe; the visuals follow the words.
 
 What Flow can and can't do here: it makes clips with their own sound (dialogue, narration spoken in-clip, SFX,
-ambience, music) in 8 s pieces (10 s with characters). It doesn't make one long voice-over track, join clips or burn
-captions. Say so up front and offer the fitting option:
+ambience, music) in 8 s pieces (10 s with characters). It doesn't make one long voice-over track or burn captions.
+`flow_assemble` joins the finished clips locally and can lay a voice-over or music file the user supplies over them.
+Say this up front and offer the fitting option:
 
 | Option | How | Best for |
 |---|---|---|
 | **A. Spoken in each clip** | Each shot speaks its own narration line or dialogue (a Flow character's voice, or a narrator described identically every time) | Short pieces, talking characters |
-| **B. Silent clips for a separate voice-over** | Every shot "No dialogue. No music.", timed to the script; the user records or makes the voice-over and joins it in an editor | Longer explainers, a consistent narrator |
+| **B. Silent clips for a separate voice-over** | Every shot "No dialogue. No music.", timed to the script; the user records or makes the voice-over; `flow_assemble` joins the clips and lays it on (`audio`, `clip_audio_volume: 0`) | Longer explainers, a consistent narrator |
 | **C. Picture story** | Free stills, one per beat, for the user to pan and zoom over a voice-over in an editor | Cheapest; stories, history, kids |
 
 ## The script table
@@ -65,7 +66,8 @@ action named by the narration clearly on screen. Upbeat music only if wanted. Ne
 ## Songs and music videos
 
 - **The user's own song:** plan blocks to its sections (intro, verse, chorus, bridge), one visual idea per line,
-  a repeated chorus visual. Generate "No music. No dialogue." and lay the song on in an editor. Avoid lip-sync unless
+  a repeated chorus visual. Generate "No music. No dialogue." and lay the song on with `flow_assemble` (`audio`:
+  the song, `clip_audio_volume: 0`); cut-to-the-beat timing still needs an editor. Avoid lip-sync unless
   the user accepts it won't match.
 - **A short sung clip from Flow:** Veo can sing a few lines in a clip. Keep the lyric to what fits 8 s (two short
   lines), state the style ("a cheerful children's song, female voice, ukulele, 100 BPM"), quote the lyrics exactly,

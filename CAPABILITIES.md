@@ -53,6 +53,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Video-to-video edit, Omni 1.1 Flash | `generate_video (source_video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
 | Still frame of a video (first, last, at a time), e.g. to start the next shot on | `flow_frame` | free | free | Decoded locally in Chrome; Flow's own Save frame is not used. |
 | Download at full quality (mp4) | `flow_wait / generate_video` | free | free |  |
+| Join clips into one video, with an optional music or voice-over track and fades | `flow_assemble` | free | free | Runs on this machine with ffmpeg; Flow's Scenebuilder timeline is not used. |
 | Upscale video (1080p / 4K) | not yet (Flow website only) | unknown | paid | Not verified on this account yet. |
 
 ## Media
