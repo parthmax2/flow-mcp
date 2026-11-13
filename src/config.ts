@@ -29,6 +29,11 @@ export const config = {
   /** Local registry of projects and uploads. */
   dataDir: process.env.FLOW_DATA_DIR ?? path.join(FLOW_HOME, "data"),
   chromePath: process.env.FLOW_CHROME_PATH,
+  /**
+   * The most credits any single approval may spend, whatever a tool call's max_credits says.
+   * Unset means no extra cap. A safety net against a client passing a large budget.
+   */
+  maxCreditsPerCall: process.env.FLOW_MAX_CREDITS_PER_CALL ? Number(process.env.FLOW_MAX_CREDITS_PER_CALL) : undefined,
 };
 
 /** Each project's downloads go in their own folder so work from different projects never mixes. */

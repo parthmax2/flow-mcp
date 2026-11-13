@@ -126,6 +126,46 @@ export async function listAssets(page: Page, includeTrashed = false): Promise<As
   return includeTrashed ? assets : assets.filter((a) => !a.trashed);
 }
 
+export interface AssetFilter {
+  kind?: "image" | "video";
+  source?: "uploaded" | "generated";
+  /** Epoch seconds: only media created after it. */
+  since?: number;
+  /** At most this many, newest first (default 50). */
+  limit?: number;
+  /** Every field (prompt, size, references...) instead of the short form. */
+  full?: boolean;
+}
+
+/**
+ * Filters a project's media and trims each entry, so a big project (90 items with long
+ * prompts came to 70k characters) stays readable for the client. The short form keeps what
+ * is needed to pick an item and attach it by id.
+ */
+export function filterAssets(assets: Asset[], filter: AssetFilter = {}): { total: number; shown: number; assets: Partial<Asset>[] } {
+  const matching = assets.filter(
+    (a) =>
+      (!filter.kind || a.kind === filter.kind) &&
+      (!filter.source || a.source === filter.source) &&
+      (filter.since === undefined || (a.createdAt ?? 0) > filter.since),
+  );
+  const picked = matching.slice(0, filter.limit ?? 50);
+  const shape = ({ previewToken: _, ...a }: Asset): Partial<Asset> =>
+    filter.full
+      ? a
+      : {
+          id: a.id,
+          title: a.title.length > 80 ? `${a.title.slice(0, 79)}…` : a.title,
+          kind: a.kind,
+          source: a.source,
+          ...(a.model ? { model: a.model } : {}),
+          ...(a.createdAt ? { createdAt: a.createdAt } : {}),
+          ...(a.durationSeconds ? { durationSeconds: Math.round(a.durationSeconds * 10) / 10 } : {}),
+          ...(a.trashed ? { trashed: true } : {}),
+        };
+  return { total: matching.length, shown: picked.length, assets: picked.map(shape) };
+}
+
 const matchesTitle = (asset: Asset, name: string) => asset.title === name || asset.title === path.parse(name).name;
 
 export interface PreparedAttachments {
@@ -212,8 +252,15 @@ export async function attachMedia(page: Page, mediaIds: string[], assets: Asset[
   for (const id of mediaIds) {
     const asset = assets.find((a) => a.id === id);
     if (!asset) throw new Error(`Media ${id} is not in this project; list it with flow_assets.`);
-    await page.getByRole("button", { name: "Add ingredients to the prompt box" }).click({ timeout: 30_000 });
-    await pickAsset(page, asset);
+    const open = () => page.getByRole("button", { name: "Add ingredients to the prompt box" }).click({ timeout: 30_000 });
+    await open();
+    // The picker sometimes misses an item on the first pass (a slow load, a stale tab);
+    // reopening it once gives it a fresh list before giving up.
+    await pickAsset(page, asset).catch(async () => {
+      await page.waitForTimeout(1_000);
+      await open();
+      await pickAsset(page, asset);
+    });
     // Picking an image attaches it at once and closes the picker (its confirm button can still
     // be visible mid-animation). Picking a video opens a trim preview that needs the confirm.
     // The video preview can take a while to load (a padded 1280x720 clip took over 5 s), and
@@ -257,9 +304,15 @@ export async function pickAsset(page: Page, asset: Asset): Promise<void> {
     else {
       await search.fill("", { timeout: 5_000 }).catch(() => {});
       let found = await shows(thumb, 2_000);
-      for (let i = 0; i < 15 && !found; i++) {
+      // The list loads more as it scrolls. Keep going until it stops growing (a few unchanged
+      // steps in a row), so old media in a big project is reached; the cap only stops a runaway.
+      let unchanged = 0;
+      for (let i = 0, count = await options.count(); i < 200 && !found && unchanged < 4; i++) {
         await options.last().scrollIntoViewIfNeeded({ timeout: 2_000 }).catch(() => {});
         found = await shows(thumb, 800);
+        const now = await options.count();
+        unchanged = now > count ? 0 : unchanged + 1;
+        count = now;
       }
       if (!found) option = options.filter({ hasText: title }).first();
     }

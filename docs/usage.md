@@ -84,14 +84,15 @@ voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `gen
 | `flow_status` | Health check: signed-in account, credits, and what is wrong if something is | free |
 | `flow_credits` | Remaining Flow credits | free |
 | `flow_projects` | Lists projects, with the purpose and uploads recorded for ones this tool made | free |
-| `flow_assets` | Lists a project's images and videos with ids, sources and duplicate uploads | free |
+| `flow_assets` | Lists a project's images and videos (short form; filter by kind, source, time; `full` for prompts) and duplicate uploads | free |
 | `flow_trash` | Moves media to Flow's trash: previews first, moves only with the confirmation code | free |
 | `generate_image` | Creates or edits images; attach files or project media to edit or combine | free |
 | `generate_images` | Several images at once in up to 3 parallel Flow tabs, about 3x faster | free |
-| `flow_upscale` | Downloads an image at 2K (free) or 4K (paid plans), or lists the sizes offered | free / plan |
+| `flow_upscale` | Downloads images at 2K (free) or 4K (paid plans), one or several (`media_ids`), or lists the sizes offered | free / plan |
 | `flow_chat` | Sends one message to Flow's agent and returns its exact reply | free |
 | `flow_approve` | Approves or rejects the agent's spend request, within `max_credits` | quoted credits |
-| `flow_wait` | Waits for media to finish and downloads it | free |
+| `flow_wait` | Waits for media to finish and downloads it; `strip_audio` removes the sound from videos | free |
+| `flow_download` | Downloads media already in a project by id, without waiting (use it when a finished video stays "pending") | free |
 | `flow_transcript` | Reads a project's agent conversation | free |
 | `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
 | `generate_video` | Starts a video within budget; inputs take a role (see above) | quoted credits |

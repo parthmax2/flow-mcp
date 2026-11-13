@@ -1,5 +1,5 @@
 import type { Page } from "playwright-core";
-import { tapRpcs, type RpcTap } from "../browser/rpc.js";
+import { callRpc, tapRpcs, type RpcTap } from "../browser/rpc.js";
 import { getFlowPage } from "../browser/connect.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
 import { assertNoNewQuotaNotice, failuresSinceLastPrompt, forgetQuotaIfOver, pendingApproval, quotaNotices, readTranscript, type Approval, type ChatMessage } from "./chat.js";
@@ -7,6 +7,7 @@ import { attachInputs, type AttachedInputs } from "./assets.js";
 import { attachCharacters } from "./characters.js";
 import { clearPrompt, download, openProject, sendPrompt, waitForAgentTurn, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 import { assertApprovalRequired } from "./settings.js";
+import { config } from "../config.js";
 import { checkUploadable } from "./upload.js";
 
 /*
@@ -162,6 +163,11 @@ export interface DecideOptions {
 
 export type DecideResult = TurnResult & { decision: "approved" | "rejected" | "rejected_over_budget"; credits?: number };
 
+/** A call's budget, lowered to the server-wide FLOW_MAX_CREDITS_PER_CALL cap when one is set. */
+export function effectiveBudget(maxCredits: number, cap = config.maxCreditsPerCall): number {
+  return cap !== undefined && Number.isFinite(cap) ? Math.min(maxCredits, cap) : maxCredits;
+}
+
 /**
  * Answers the agent's pending spend approval. Never picks "Always approve", never approves a
  * quote it cannot read, and turns an over-budget approval into a rejection.
@@ -177,7 +183,7 @@ export async function decide(options: DecideOptions): Promise<DecideResult> {
   let decision: DecideResult["decision"] = options.decision === "approve" ? "approved" : "rejected";
   if (decision === "approved") {
     if (approval.credits === undefined) throw new Error(`Could not read the cost in "${approval.question}"; not approving.`);
-    if (approval.credits > options.maxCredits) decision = "rejected_over_budget";
+    if (approval.credits > effectiveBudget(options.maxCredits)) decision = "rejected_over_budget";
   }
 
   const watch = await MediaWatch.start(page);
@@ -219,6 +225,52 @@ export interface WaitResult {
   failures?: string[];
 }
 
+const PROJECT_MEDIA_RPC = "Zzl0ze";
+
+/**
+ * Adds every media record in the project's media list to `into`. The page itself loads its
+ * tiles lazily, so in a big project older items never pass through the network tap; asking
+ * for the list directly (as flow_assets does) sees them all, though only with preview URLs.
+ */
+async function addProjectMedia(page: Page, projectId: string, into: Map<string, FlowMedia>): Promise<void> {
+  const body = await callRpc(page, PROJECT_MEDIA_RPC, [`projects/${projectId}`, null, null, null, [1]]).catch(() => "");
+  for (const { data } of parseBatchExecute(body)) extractMedia(Array.isArray(data) ? data[2] : undefined, into);
+}
+
+/**
+ * The full-size file URL of one finished media item, read from its viewer page, where the
+ * player holds the signed file URL. The project page often only ever receives a preview for
+ * a finished video, so this is what makes such videos downloadable. Undefined while the item
+ * is still rendering.
+ */
+export async function viewerUrl(page: Page, projectId: string, mediaId: string): Promise<string | undefined> {
+  await page.goto(`${new URL(config.flowUrl).origin}/project/${projectId}/edit/${mediaId}`, { waitUntil: "domcontentloaded" });
+  const pattern = new RegExp(`^https://flow-content\\.google/(video|image)/${mediaId}`);
+  for (let i = 0; i < 20; i++) {
+    const sources = await page
+      .locator("video, video source, img")
+      .evaluateAll((els) => els.map((e) => (e as HTMLVideoElement).currentSrc || e.getAttribute("src") || ""))
+      .catch(() => [] as string[]);
+    // A video's poster image comes first on the page; the file is what counts.
+    const url = sources.find((s) => s.startsWith(`https://flow-content.google/video/${mediaId}`)) ?? sources.find((s) => pattern.test(s));
+    if (url) return url;
+    await page.waitForTimeout(500);
+  }
+  return undefined;
+}
+
+/** Fills in full-size URLs from the viewer for items that only have a preview. */
+async function resolveFromViewer(page: Page, projectId: string, items: FlowMedia[]): Promise<void> {
+  for (const m of items) {
+    if (isFullSize(m)) continue;
+    const url = await viewerUrl(page, projectId, m.id).catch(() => undefined);
+    if (url) {
+      m.url = url;
+      if (url.includes("/video/")) m.kind = "video";
+    }
+  }
+}
+
 /** Reads a render percentage Flow shows on a placeholder tile, if any. */
 async function renderPercent(page: Page): Promise<number | undefined> {
   const texts = await page.getByText(/^\d{1,3}%$/).allInnerTexts().catch(() => []);
@@ -243,14 +295,26 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
   const tracked = () => [...watch.found.values()].filter(matches);
   // Short by default so one call stays within MCP clients' tool time limits; callers poll again.
   const deadline = Date.now() + (options.timeoutMs ?? 90_000);
-  try {
-    await page.reload({ waitUntil: "domcontentloaded" });
+  const projectUrl = `${new URL(config.flowUrl).origin}/project/${projectId}`;
+  const refresh = async () => {
+    await page.goto(projectUrl, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(5_000);
+    await addProjectMedia(page, projectId, watch.found);
+  };
+  try {
+    await refresh();
     let failures: string[] = [];
     while (true) {
-      const items = tracked();
+      let items = tracked();
       const expected = wanted ? wanted.size : 1;
       if (items.length >= expected && items.every(isFullSize)) break;
+      // Listed but only as a preview: a finished video may still have its file URL only on its viewer page.
+      if (items.some((m) => !isFullSize(m))) {
+        await resolveFromViewer(page, projectId, items);
+        await page.goto(projectUrl, { waitUntil: "domcontentloaded" });
+        items = tracked();
+        if (items.length >= expected && items.every(isFullSize)) break;
+      }
       // Failed media is never listed, so stop on the chat's error tile once nothing else is rendering.
       failures = failuresSinceLastPrompt(await readTranscript(page).catch(() => []));
       if (failures.length && items.every(isFullSize)) break;
@@ -263,8 +327,7 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
       // A refresh cycle takes POLL_MS plus ~5 s; skip one that would end past the deadline.
       if (deadline - Date.now() < POLL_MS + 5_000) break;
       await page.waitForTimeout(POLL_MS);
-      await page.reload({ waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(5_000);
+      await refresh();
     }
     const items = tracked();
     const ready = items.filter(isFullSize);
@@ -285,6 +348,34 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
   } finally {
     await watch.stop();
   }
+}
+
+export interface DownloadResult {
+  projectId: string;
+  files: DownloadedMedia[];
+  /** In the project but with no file to download yet (still rendering, or Flow did not show one). */
+  notReady: string[];
+  /** Not in this project at all. */
+  notFound: string[];
+}
+
+/**
+ * Downloads media already in the project by id, with no waiting: the project's media list
+ * says what exists, and the viewer page supplies a file URL where the list only has a preview.
+ */
+export async function downloadMedia(projectId: string, mediaIds: string[]): Promise<DownloadResult> {
+  const page = await getFlowPage();
+  await page.bringToFront();
+  await openProject(page, { projectId });
+  const known = new Map<string, FlowMedia>();
+  await addProjectMedia(page, projectId, known);
+  const notFound = mediaIds.filter((id) => !known.has(id));
+  const items = mediaIds.filter((id) => known.has(id)).map((id) => known.get(id)!);
+  await resolveFromViewer(page, projectId, items);
+  await page.goto(`${new URL(config.flowUrl).origin}/project/${projectId}`, { waitUntil: "domcontentloaded" });
+  const ready = items.filter(isFullSize);
+  const files = await download(page, projectId, ready);
+  return { projectId, files, notReady: items.filter((m) => !isFullSize(m)).map((m) => m.id), notFound };
 }
 
 export async function transcript(projectId: string, includeThinking = false): Promise<{ projectId: string; messages: ChatMessage[]; pendingApproval?: Approval }> {

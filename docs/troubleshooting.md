@@ -19,6 +19,15 @@ npx -y @parthmax/flow-mcp status
 
 ## Common problems
 
+- **`generate_video` says `approval_expired`:** Flow cancelled its quote before it was answered. Nothing was
+  spent; asking again is safe.
+- **`generate_video` says `approved_elsewhere`:** someone clicked Approve in the Flow window while the tool was
+  working, so `max_credits` was not checked. The render runs; collect it with `flow_wait`. Leave the Flow
+  window's approval cards alone while a tool is working.
+- **A video Flow shows as finished stays `pending`:** call `flow_download` with its media id.
+- **Images and videos carry a small mark** (the Gemini ✦ on images, "Veo" on videos) in the bottom-right
+  corner. flow-mcp does not remove it; crop it in your editor if your use allows.
+
 - **"You've reached your Flow Agent quota limit":** Flow allows only so many agent chat messages per
   account per day. Requests stop with that message, nothing is generated and no credits are spent;
   downloads and upscales still work. Wait until tomorrow, upgrade your plan, or switch accounts:

@@ -1,5 +1,5 @@
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import { config } from "./config.js";
 
@@ -138,6 +138,20 @@ function runFfmpeg(bin: string, args: string[]): Promise<void> {
       code === 0 ? resolve() : reject(new Error(`ffmpeg failed (exit ${code}): ${tail.trim().split("\n").slice(-3).join(" ")}`)),
     );
   });
+}
+
+/**
+ * Removes the sound track of a downloaded video in place (the picture is copied, not
+ * re-encoded). Veo adds sound even when a prompt says "silent", so this is the reliable way
+ * to get a silent clip. Returns false for files that are not videos.
+ */
+export async function stripAudio(file: string): Promise<boolean> {
+  if (!/\.(mp4|mov|webm)$/i.test(file)) return false;
+  const bin = ffmpegPath();
+  const tmp = `${file}.silent${path.extname(file)}`;
+  await runFfmpeg(bin, ["-hide_banner", "-y", "-i", file, "-map", "0:v", "-c:v", "copy", "-an", tmp]);
+  renameSync(tmp, file);
+  return true;
 }
 
 export async function assemble(options: AssembleOptions): Promise<AssembleResult> {
