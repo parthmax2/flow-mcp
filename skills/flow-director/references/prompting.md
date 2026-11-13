@@ -82,6 +82,15 @@ So for photoreal images:
   For UGC add "shot on a phone, candid". For products: "real material texture, subtle reflections and wear".
 - Keep the detailed style for illustration, story keyframes and thumbnails, where composition is the point.
 
+## Avoiding the stock-AI look
+
+Plain prompts drift to clichés: the hooded hacker, Matrix code, neon teal-and-orange, holo keyboards, and extra
+props nobody asked for (field report, November 2026). What fixed it:
+- Frame it as "a frame grab from a [genre] film", not "an image of".
+- One practical light source; most of the frame (75-80 %) in shadow for moody scenes.
+- Slightly imperfect framing and fine film grain.
+- Name only what the script contains, and end with "No props or decorations that are not described."
+
 ## Image prompts (Nano Banana)
 
 Same ingredients without motion: shot size, subject with fixed traits, setting, light, style, aspect. For keyframes,

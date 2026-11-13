@@ -35,7 +35,7 @@ export const CAPABILITIES: Capability[] = [
   { area: "Images", feature: "Batch: several images in parallel tabs (about 3x faster)", tool: "generate_images", cost: "free", plan: "free", notes: "Up to 3 tabs, each in its own agent session." },
   { area: "Images", feature: "Edit images with an instruction", tool: "generate_image (attachments / media_ids)", cost: "free", plan: "free" },
   { area: "Images", feature: "Combine several images / faces into one", tool: "generate_image (attachments / media_ids)", cost: "free", plan: "free" },
-  { area: "Images", feature: "Upscale to 2K", tool: "flow_upscale", cost: "free", plan: "free", notes: "1376x768 becomes 2752x1536." },
+  { area: "Images", feature: "Upscale to 2K", tool: "flow_upscale", cost: "free", plan: "free", notes: "1376x768 becomes 2752x1536. media_ids upscales several in one call." },
   { area: "Images", feature: "Upscale to 4K", tool: "flow_upscale", cost: "plan feature", plan: "paid (higher tiers)", notes: "Shown as locked on a free account." },
   { area: "Images", feature: "Crop", tool: null, cost: "free", plan: "free" },
 
@@ -44,7 +44,9 @@ export const CAPABILITIES: Capability[] = [
   { area: "Videos", feature: "Image to video: start / end frame, ingredients (references)", tool: "generate_video (start_frame, end_frame, ingredients)", cost: "quoted by Flow", plan: "free", notes: "Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both." },
   { area: "Videos", feature: "Video-to-video edit, Omni 1.1 Flash", tool: "generate_video (source_video)", cost: "20 credits at 720p", plan: "free", notes: "Output keeps the source clip's length." },
   { area: "Videos", feature: "Still frame of a video (first, last, at a time), e.g. to start the next shot on", tool: "flow_frame", cost: "free", plan: "free", notes: "Decoded locally in Chrome; Flow's own Save frame is not used." },
-  { area: "Videos", feature: "Download at full quality (mp4)", tool: "flow_wait / generate_video", cost: "free", plan: "free" },
+  { area: "Videos", feature: "Download at full quality (mp4)", tool: "flow_wait / flow_download / generate_video", cost: "free", plan: "free", notes: "1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting." },
+  { area: "Videos", feature: "Remove the sound from downloaded videos", tool: "flow_wait / flow_download (strip_audio)", cost: "free", plan: "free", notes: "Veo adds sound even when asked for silence; stripped locally with ffmpeg." },
+  { area: "Media", feature: "Watermark: Gemini mark on images, \"Veo\" mark on videos (bottom right)", tool: null, cost: "free", plan: "free", notes: "On every output on a free account; flow-mcp does not remove it." },
   { area: "Videos", feature: "Join clips into one video, with an optional music or voice-over track and fades", tool: "flow_assemble", cost: "free", plan: "free", notes: "Runs on this machine with ffmpeg; Flow's Scenebuilder timeline is not used." },
   { area: "Videos", feature: "Upscale video (1080p / 4K)", tool: null, cost: "unknown", plan: "paid", notes: "Not verified on this account yet." },
 

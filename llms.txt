@@ -10,6 +10,7 @@ Use this file as a map of the flow-mcp documentation. flow-mcp is unofficial, op
 - Images, edits and 2K upscales are free. Videos cost credits (free account, October 2026: 50 credits a day; 8 s Veo 3.1 Lite = 10; Omni video-to-video at 720p = 20). Tell the user the quoted cost and get a yes before `flow_approve`; set `max_credits` to what they accepted. Never retry a paid generation.
 - Every creating call names a project: `project_id` to continue, `new_project_title` to start. Local files go in `attachments` and upload once per project. Ask the user before attaching their files; pass `confirm_rights: true` only after they confirm.
 - `generate_video` returns once rendering starts; call `flow_wait` until it completes. On any failure, call `flow_status` and relay its fix.
+- `flow_download` fetches media already in a project by id; use it when a finished video stays `pending` in `flow_wait`. `FLOW_MAX_CREDITS_PER_CALL` caps any single approval.
 - `flow_assemble` joins finished clips into one mp4 locally (ffmpeg), with optional music or voice-over and fades. Free.
 - Status: alpha, tested on Windows with Flow in English.
 
@@ -17,7 +18,7 @@ Use this file as a map of the flow-mcp documentation. flow-mcp is unofficial, op
 
 - [README](README.md): what it is, install, quick start, how it fits together, credits and safety
 - [Getting started](docs/getting-started.md): requirements, setup, connecting Claude Code, Cursor, VS Code and Claude Desktop, running from source
-- [Usage](docs/usage.md): credits, projects, uploads, videos and frames, characters, joining clips, the 19 MCP tools, command line
+- [Usage](docs/usage.md): credits, projects, uploads, videos and frames, characters, joining clips, the 20 MCP tools, command line
 - [Capabilities](CAPABILITIES.md): every Flow feature, the tool that covers it, cost and plan limits
 - [Configuration](docs/configuration.md): environment variables, several Google accounts
 - [Troubleshooting](docs/troubleshooting.md): `status` results and common fixes

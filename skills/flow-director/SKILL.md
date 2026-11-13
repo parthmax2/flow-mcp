@@ -112,8 +112,11 @@ never costs a second render. For each shot, in order:
    - `ingredients` (sheet images): reference-to-video, when no Flow character was made.
    Given frames and references together, Flow's agent asks which to use (nothing is spent).
 2. If the result is `needs_answer`, answer the agent's question with `flow_chat` (keep it on plan). `over_budget`
-   means nothing was spent: tell the user the quote.
-3. `flow_wait` until `completed`. On `failed`, tell the user Flow's message and suggest checking `flow_credits` for
+   and `approval_expired` mean nothing was spent: tell the user (an expired quote can be asked again).
+   `approved_elsewhere` means someone clicked Approve in the Flow window, so the budget was not checked: tell the
+   user, and ask them to leave the Flow window's approval cards alone while you work.
+3. `flow_wait` until `completed` (`strip_audio: true` when the user wants silent clips; Veo adds sound anyway). If a
+   video the Flow website shows as finished stays `pending`, fetch it with `flow_download`. On `failed`, tell the user Flow's message and suggest checking `flow_credits` for
    the refund; don't regenerate without their OK (rephrasing usually helps if it was a safety block). Then check it: take a frame or two with `flow_frame` and look at them. Compare
    faces, outfit and setting against the sheet before moving on.
 4. Continuity: the next shot's `start_frame` is this shot's last frame, unless it is a deliberate cut to a new

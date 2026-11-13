@@ -83,7 +83,7 @@ references.
 
 ## How it fits together
 
-- The **MCP server** (`flow-mcp serve`) runs on your computer and gives your assistant [19 Flow tools](docs/usage.md#mcp-tools):
+- The **MCP server** (`flow-mcp serve`) runs on your computer and gives your assistant [20 Flow tools](docs/usage.md#mcp-tools):
   images, videos, upscaling, characters, projects, credits and Flow's agent chat.
 - A **Chrome window** with its own profile stays signed in to your Google account. flow-mcp drives Flow's
   own page there, so Flow handles sign-in and verification as it does for you.

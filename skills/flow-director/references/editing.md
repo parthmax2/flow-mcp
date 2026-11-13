@@ -55,6 +55,13 @@ with that frame as `start_frame` (no ingredients) and a prompt that picks up the
 fixed traits ("She keeps walking toward the door, the camera keeps tracking her..."). Tested: the new clip opens on
 the exact frame and the character holds. Join the clips with `flow_assemble`, or in an editor to cut on motion and hide the seam.
 
+## Re-rolling loses the performance
+
+A new generation of the same shot is a new take: different acting, timing and motion, and often worse (field
+report, November 2026: a regenerated "subtle reaction" came out worse and the user kept the old clip). When a shot
+is mostly right, fix it with an Omni edit (`source_video`) or continue from its last frame; re-roll only when the
+performance itself is wrong, and say that the new take will differ.
+
 ## Small fixes
 
 | Problem | Fix |

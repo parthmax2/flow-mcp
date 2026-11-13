@@ -6,3 +6,6 @@ output/
 data/
 # Personal reference media (faces, third-party clips) never belongs in the repo
 reference/
+
+# Private field notes (client names and project ids)
+docs/FIELD-ISSUES-*.md

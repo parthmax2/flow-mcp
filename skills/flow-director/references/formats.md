@@ -54,6 +54,19 @@ light and composition exactly the same." Each accepted edit is the source for th
 
 **Hard limits:** at most about 16 images per thumbnail job; never invent claims, numbers or people.
 
+## Product lock (real products)
+
+Flow redraws real products: round holes for pill buttons, new or warped icons, panels resized or moved (field
+report, November 2026: 2-3 retries per shot, some never exact). Every prompt with a real product gets:
+"Keep the product exactly as in image 1: same shape, proportions, button layout, icons and finish. Add nothing,
+remove nothing, change no detail." Then:
+- Attach the clearest product photo for every shot; for a product seen from several sides, use a separate shot
+  per side with the matching photo.
+- In video, let Veo move only the light and the camera around the product, not the product itself; motion is
+  where icons drift.
+- Check every frame against the photo. When exact icons or text matter for a client, composite the real product
+  photo in the edit rather than re-rolling.
+
 ## Product: studio / catalog
 
 "[1:1] studio product photo. Image 1 is the product: keep its shape, label, colors and proportions exactly.

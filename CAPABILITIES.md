@@ -39,7 +39,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Batch: several images in parallel tabs (about 3x faster) | `generate_images` | free | free | Up to 3 tabs, each in its own agent session. |
 | Edit images with an instruction | `generate_image (attachments / media_ids)` | free | free |  |
 | Combine several images / faces into one | `generate_image (attachments / media_ids)` | free | free |  |
-| Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. |
+| Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. media_ids upscales several in one call. |
 | Upscale to 4K | `flow_upscale` | plan feature | paid (higher tiers) | Shown as locked on a free account. |
 | Crop | not yet (Flow website only) | free | free |  |
 
@@ -52,7 +52,8 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Image to video: start / end frame, ingredients (references) | `generate_video (start_frame, end_frame, ingredients)` | quoted by Flow | free | Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both. |
 | Video-to-video edit, Omni 1.1 Flash | `generate_video (source_video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
 | Still frame of a video (first, last, at a time), e.g. to start the next shot on | `flow_frame` | free | free | Decoded locally in Chrome; Flow's own Save frame is not used. |
-| Download at full quality (mp4) | `flow_wait / generate_video` | free | free |  |
+| Download at full quality (mp4) | `flow_wait / flow_download / generate_video` | free | free | 1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting. |
+| Remove the sound from downloaded videos | `flow_wait / flow_download (strip_audio)` | free | free | Veo adds sound even when asked for silence; stripped locally with ffmpeg. |
 | Join clips into one video, with an optional music or voice-over track and fades | `flow_assemble` | free | free | Runs on this machine with ffmpeg; Flow's Scenebuilder timeline is not used. |
 | Upscale video (1080p / 4K) | not yet (Flow website only) | unknown | paid | Not verified on this account yet. |
 
@@ -60,6 +61,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
+| Watermark: Gemini mark on images, "Veo" mark on videos (bottom right) | not yet (Flow website only) | free | free | On every output on a free account; flow-mcp does not remove it. |
 | List a project's media (ids, uploaded/generated, references) | `flow_assets` | free | free |  |
 | Upload local images/videos once per project and reuse | `attachments on creating tools` | free | free | Matched by content hash; rights notice confirmed on the user's behalf. |
 | List download sizes for a media item | `flow_upscale (size omitted)` | free | free |  |

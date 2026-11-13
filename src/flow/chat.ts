@@ -143,6 +143,24 @@ export function failuresSinceLastPrompt(messages: ChatMessage[]): string[] {
   return messages.slice(lastUser + 1).flatMap((m) => m.failures ?? []);
 }
 
+const EXPIRED = /timed out while waiting for confirmation/i;
+
+/**
+ * What became of a spend quote that is no longer waiting: Flow expired it ("timed out while
+ * waiting for confirmation", nothing spent), or it was answered. Only decide() answers quotes,
+ * so a quote answered before this server saw it was answered by someone else, usually a click
+ * in the Flow window, and its cost was never checked against max_credits.
+ */
+export function quoteOutcome(messages: ChatMessage[]): { kind: "expired" } | { kind: "answered"; credits: number } | undefined {
+  const quoted = messages.filter((m) => m.role === "agent" && m.approval);
+  if (quoted.length === 0) return undefined;
+  const after = messages.slice(messages.indexOf(quoted.at(-1)!));
+  if (after.some((m) => m.role === "agent" && EXPIRED.test(m.text))) return { kind: "expired" };
+  const last = quoted.at(-1)!.approval!;
+  if (!last.pending && last.credits !== undefined) return { kind: "answered", credits: last.credits };
+  return undefined;
+}
+
 /*
  * Flow limits how many agent chat messages an account can send per day. When the limit is
  * reached the panel shows a notice ("You've reached your Flow Agent quota limit. Switch to

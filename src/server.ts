@@ -4,15 +4,15 @@ import { z } from "zod";
 import { getFlowPage } from "./browser/connect.js";
 import { launchChrome } from "./browser/chrome.js";
 import { startSignIn, waitForSignIn } from "./flow/account.js";
-import { listAssets } from "./flow/assets.js";
+import { filterAssets, listAssets } from "./flow/assets.js";
 import { checkHealth } from "./flow/health.js";
 import { generate, generateBatch } from "./flow/generate.js";
 import { listProjects } from "./flow/projects.js";
-import { chatTurn, decide, transcript, waitForMedia } from "./flow/session.js";
+import { chatTurn, decide, downloadMedia, transcript, waitForMedia } from "./flow/session.js";
 import { openProject, readCredits, serialize, type ProjectChoice } from "./flow/ui.js";
 import { readInstructions, readSettings, setInstructions, updateSettings } from "./flow/settings.js";
 import { extractFrame } from "./flow/frame.js";
-import { assemble } from "./assemble.js";
+import { assemble, stripAudio } from "./assemble.js";
 import { createCharacter, listCharacters, listVoices, updateCharacter } from "./flow/characters.js";
 import { directorGuide, readSkillFile, RESOURCE_PREFIX, skillFiles } from "./director.js";
 import { findDuplicateUploads, previewTrash, trashMedia } from "./flow/trash.js";
@@ -52,6 +52,23 @@ const server = new McpServer({ name: "flow-mcp", version: VERSION }, { instructi
 const json = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] });
 
 /** Follow-ups Flow offers for new media, so the connected AI can propose them to the user. */
+const stripAudioField = z
+  .boolean()
+  .optional()
+  .describe("Remove the sound from downloaded videos (Veo adds sound even when asked for silence). Needs ffmpeg");
+
+/** Strips the sound track from the videos among downloaded files, marking each. */
+async function silence(files: { file: string; kind?: string; audioRemoved?: boolean }[]): Promise<void> {
+  for (const f of files) if (f.kind === "video") f.audioRemoved = await stripAudio(f.file);
+}
+
+const imageCount = z.number().int().min(1).max(4).optional().describe("Exactly how many images to make (Flow's default is 2)");
+
+/** Flow's agent follows a plain instruction on the number of images better than any setting per request. */
+function withCount(prompt: string, count?: number): string {
+  return count ? `${prompt.trim()} Make exactly ${count} image${count === 1 ? "" : "s"}.` : prompt;
+}
+
 function nextSteps(projectId: string, files: { id: string; kind?: string }[]): string[] {
   const steps: string[] = [];
   for (const f of files) {
@@ -183,16 +200,22 @@ server.registerTool(
   {
     title: "List the media in a Flow project",
     description:
-      "Lists a project's images and videos, newest first: id, title, image/video, uploaded/generated, model, prompt, " +
-      "size, duration and what each generated item was made from. Attach any of them to a request with media_ids " +
-      "instead of uploading files again. duplicateUploads lists repeated uploads of the same file, with the copy to keep.",
+      "Lists a project's images and videos, newest first, in a short form (id, title, image/video, uploaded/generated, " +
+      "model, time, duration); full: true adds prompt, size and what each generated item was made from. Filter by " +
+      "kind, source and since, and cap with limit (default 50); total says how many match. Attach any of them with " +
+      "media_ids instead of uploading files again. duplicateUploads lists repeated uploads of the same file, with the copy to keep.",
     inputSchema: {
       project_id: z.string().uuid(),
+      kind: z.enum(["image", "video"]).optional(),
+      source: z.enum(["uploaded", "generated"]).optional(),
+      since: z.number().optional().describe("Epoch seconds: only media created after it"),
+      limit: z.number().int().min(1).max(500).optional().describe("At most this many, newest first (default 50)"),
+      full: z.boolean().optional().describe("Every field, including prompts (longer output)"),
       include_trashed: z.boolean().optional().describe("Also list items in Flow's trash"),
     },
     annotations: { readOnlyHint: true },
   },
-  async ({ project_id, include_trashed }) =>
+  async ({ project_id, include_trashed, kind, source, since, limit, full }) =>
     json(
       await serialize(async () => {
         const page = await getFlowPage();
@@ -200,7 +223,7 @@ server.registerTool(
         const assets = await listAssets(page, include_trashed);
         return {
           projectId: project_id,
-          assets: assets.map(({ previewToken: _, ...a }) => a),
+          ...filterAssets(assets, { kind, source, since, limit, full }),
           duplicateUploads: findDuplicateUploads(assets),
         };
       }),
@@ -246,10 +269,12 @@ server.registerTool(
     description:
       "Asks the Flow agent for images and saves them locally. To edit, attach the image (attachments for local files, " +
       "media_ids for project media) and describe the change, or in the same project just name the image the agent made. " +
-      "The agent may rewrite the prompt and make several images (default 2 with Nano Banana); say 'one image' to steer " +
-      "it. The result includes what the agent said. Images use no Flow credits. Takes 30-120 s.",
+      "The agent may rewrite the prompt. It makes the project's default number of images (2 unless changed with " +
+      "flow_settings); pass count to ask for an exact number. The result includes what the agent said. Images use no " +
+      "Flow credits. Takes 30-120 s.",
     inputSchema: {
       prompt: z.string().min(1).describe("What to create or change"),
+      count: imageCount,
       ...projectFields,
       attachments,
       confirm_rights: confirmRights,
@@ -258,7 +283,7 @@ server.registerTool(
     },
   },
   async (a) => {
-    const result = await generate({ prompt: a.prompt, images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
+    const result = await generate({ prompt: withCount(a.prompt, a.count), images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
     return json({ ...result, nextSteps: nextSteps(result.projectId, result.files) });
   },
 );
@@ -276,6 +301,7 @@ server.registerTool(
         .array(
           z.object({
             prompt: z.string().min(1),
+            count: imageCount,
             attachments: z.array(z.string().min(1)).max(5).optional().describe("Local image paths for this job"),
             media_ids: z.array(z.string().uuid()).max(5).optional(),
             characters: characterRefs,
@@ -283,6 +309,7 @@ server.registerTool(
         )
         .min(1)
         .max(12),
+      count: imageCount.describe("Images per job, for every job without its own count (default: the project's setting, 2 unless changed)"),
       parallel: z.number().int().min(1).max(3).optional().describe("Tabs at once (default 3)"),
       ...projectFields,
       confirm_rights: confirmRights,
@@ -290,7 +317,7 @@ server.registerTool(
   },
   async (a, extra) => {
     const results = await generateBatch(
-      a.jobs.map((j) => ({ prompt: j.prompt, images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
+      a.jobs.map((j) => ({ prompt: withCount(j.prompt, j.count ?? a.count), images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
       { ...projectChoice(a), parallel: a.parallel, confirmRights: a.confirm_rights, onProgress: progressReporter(extra) },
     );
     return json({
@@ -306,18 +333,34 @@ server.registerTool(
     description:
       "Downloads a project's media at the chosen size, upscaling it in Flow: images 2K (free on every account) or 4K " +
       "(paid plans). Without size, lists the sizes Flow offers for that item on this account, including locked ones. " +
-      "Offer the free 2K upscale to the user after new images rather than doing it unasked.",
+      "Offer the free 2K upscale to the user after new images rather than doing it unasked. media_ids upscales " +
+      "several at once (one after another; each result or error is listed).",
     inputSchema: {
       project_id: z.string().uuid(),
-      media_id: z.string().uuid(),
+      media_id: z.string().uuid().optional(),
+      media_ids: z.array(z.string().uuid()).min(1).max(20).optional().describe("Several media to upscale to the same size"),
       size: z.enum(Object.keys(SIZES) as [Size, ...Size[]]).optional().describe("1k (original), 2k or 4k; omit to list the options"),
     },
   },
-  async ({ project_id, media_id, size }, extra) =>
+  async ({ project_id, media_id, media_ids, size }, extra) =>
     json(
       await serialize(async () => {
         const page = await getFlowPage();
-        return size ? upscale(page, project_id, media_id, size, progressReporter(extra)) : { options: await downloadOptions(page, project_id, media_id) };
+        const ids = [...(media_id ? [media_id] : []), ...(media_ids ?? [])];
+        if (ids.length === 0) throw new Error("Give media_id or media_ids.");
+        if (!size) return { options: await downloadOptions(page, project_id, ids[0]) };
+        if (ids.length === 1) return upscale(page, project_id, ids[0], size, progressReporter(extra));
+        const report = progressReporter(extra);
+        const results = [];
+        for (const [i, id] of ids.entries()) {
+          report(`upscaling ${i + 1} of ${ids.length}`);
+          try {
+            results.push({ ok: true, ...(await upscale(page, project_id, id, size, report)) });
+          } catch (err) {
+            results.push({ ok: false, mediaId: id, error: err instanceof Error ? err.message.split("\n")[0] : String(err) });
+          }
+        }
+        return { results };
       }),
     ),
 );
@@ -437,9 +480,10 @@ server.registerTool(
       media_ids: z.array(z.string().uuid()).optional(),
       since: z.number().optional().describe("Epoch seconds; media created after it"),
       timeout_seconds: z.number().int().min(10).max(600).optional().describe("How long this call waits (default 90)"),
+      strip_audio: stripAudioField,
     },
   },
-  async ({ project_id, media_ids, since, timeout_seconds }, extra) => {
+  async ({ project_id, media_ids, since, timeout_seconds, strip_audio }, extra) => {
     const result = await serialize(() =>
       waitForMedia({
         projectId: project_id,
@@ -449,6 +493,30 @@ server.registerTool(
         onProgress: progressReporter(extra),
       }),
     );
+    if (strip_audio) await silence(result.files);
+    return json({ ...result, nextSteps: nextSteps(project_id, result.files) });
+  },
+);
+
+server.registerTool(
+  "flow_download",
+  {
+    title: "Download project media by id",
+    description:
+      "Downloads images or videos already in a Flow project, by media id, without waiting for renders: use it for " +
+      "anything flow_assets lists, or when flow_wait keeps saying 'pending' for a video the Flow website shows as " +
+      "finished. Returns the files, ids that are listed but have no file yet (notReady: still rendering) and ids " +
+      "not in the project (notFound). Free.",
+    inputSchema: {
+      project_id: z.string().uuid(),
+      media_ids: z.array(z.string().uuid()).min(1).max(30),
+      strip_audio: stripAudioField,
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ project_id, media_ids, strip_audio }) => {
+    const result = await serialize(() => downloadMedia(project_id, media_ids));
+    if (strip_audio) await silence(result.files);
     return json({ ...result, nextSteps: nextSteps(project_id, result.files) });
   },
 );

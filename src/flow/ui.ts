@@ -112,11 +112,27 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
  * Waits for the agent's turn to end. While it thinks or streams, the send button becomes a
  * Stop button; a typing indicator alone is not a reliable signal.
  */
+/*
+ * While the agent waits for a spend approval its turn is still open: the Stop button stays
+ * visible until someone answers the card, and Flow expires the quote after a few minutes
+ * ("timed out while waiting for confirmation"). So the turn counts as finished as soon as an
+ * answerable approval card shows, letting decide() click before the quote expires. Old cards
+ * from earlier turns have their choices disabled, so they never match.
+ */
+export const OPEN_APPROVAL = 'flow-permission-message [role="radio"][aria-disabled="false"]';
+
 export async function waitForAgentTurn(page: Page, timeoutMs = 300_000): Promise<void> {
   // Other prompt boxes on the page have their own Stop button; only the agent panel's counts.
   const stop = page.locator("flow-agent-panel").getByRole("button", { name: "Stop", exact: true });
+  const approval = page.locator(OPEN_APPROVAL);
   await stop.waitFor({ state: "visible", timeout: 15_000 }).catch(() => {});
-  await stop.waitFor({ state: "hidden", timeout: timeoutMs });
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (!(await stop.isVisible().catch(() => false))) return;
+    if ((await approval.count().catch(() => 0)) > 0) return;
+    await page.waitForTimeout(500);
+  }
+  throw new Error(`The Flow agent did not finish its reply within ${Math.round(timeoutMs / 1000)} s. Check the Flow window, or flow_transcript.`);
 }
 
 /** The text of the agent's latest message in the chat panel. */

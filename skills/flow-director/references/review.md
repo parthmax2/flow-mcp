@@ -52,7 +52,15 @@ It lets you resume after an interruption without regenerating approved work: `fl
 already has, and `flow_wait` with the media id collects a render that was still running. Never start a second
 render of a shot while the first may still be running.
 
+## Several videos in a row
+
+Start paid videos one after another, each checked before the next (the first-shot gate). If a video the Flow
+website shows as finished stays `pending`, `flow_download` fetches it by id.
+
 ## Deliver
+
+Every output carries a small mark in the bottom-right corner (the Gemini mark on images, "Veo" on videos) on a
+free account. Mention it when delivering; leave any cropping to the user's own editor.
 
 List the files in shot order with a short label each ("shot 2, close-up, she opens the door"), the credits spent,
 and anything unchecked or not done. Don't paste media ids, raw JSON or full prompts unless the user asks.

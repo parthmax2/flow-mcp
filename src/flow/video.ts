@@ -1,5 +1,5 @@
-import { failuresSinceLastPrompt, type ChatMessage } from "./chat.js";
-import { chatTurn, decide, waitForMedia, type MediaInfo, type ProgressFn } from "./session.js";
+import { failuresSinceLastPrompt, quoteOutcome, type ChatMessage } from "./chat.js";
+import { chatTurn, decide, effectiveBudget, waitForMedia, type MediaInfo, type ProgressFn } from "./session.js";
 import { serialize, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 
 /*
@@ -65,6 +65,13 @@ export type VideoResult =
   | (Base & { status: "started"; credits: number; media: MediaInfo[]; since: number })
   /** The agent replied without quoting a cost (usually a question); answer with flow_chat. */
   | (Base & { status: "needs_answer"; agentMessage: string })
+  /** Flow expired its quote before it was answered: nothing was spent, so asking again is safe. */
+  | (Base & { status: "approval_expired"; credits: 0; agentMessage: string })
+  /**
+   * The quote was approved outside this server (for example by a click in the Flow window), so
+   * max_credits was never checked; the render runs and flow_wait collects it.
+   */
+  | (Base & { status: "approved_elsewhere"; credits: number; media: MediaInfo[]; since: number; warning: string })
   | (Base & { status: "over_budget"; credits: number; maxCredits: number; agentMessage: string })
   /** Approved, but Flow reported the render as failed (usually refunded: check flow_credits). */
   | (Base & { status: "failed"; credits: number; failures: string[] })
@@ -163,13 +170,30 @@ async function runVideo(options: VideoOptions): Promise<VideoResult> {
   });
   const base = { projectId: asked.projectId, projectUrl: asked.projectUrl };
   const quote = asked.pendingApproval;
-  if (!quote || quote.credits === undefined) return { ...base, messages: asked.messages, status: "needs_answer", agentMessage: asked.reply };
+  if (!quote || quote.credits === undefined) {
+    const outcome = quoteOutcome(asked.messages);
+    if (outcome?.kind === "expired") return { ...base, messages: asked.messages, status: "approval_expired", credits: 0, agentMessage: asked.reply };
+    if (outcome?.kind === "answered") {
+      return {
+        ...base,
+        messages: asked.messages,
+        status: "approved_elsewhere",
+        credits: outcome.credits,
+        media: asked.media,
+        since: asked.since,
+        warning:
+          `Flow's quote of ${outcome.credits} credits was approved outside this server (for example by a click in the ` +
+          "Flow window), so max_credits was not checked. Leave the Flow window's approval cards alone while a tool is working.",
+      };
+    }
+    return { ...base, messages: asked.messages, status: "needs_answer", agentMessage: asked.reply };
+  }
 
   progress(`Flow quoted ${quote.credits} credits (budget ${maxCredits})`);
   const decided = await decide({ projectId: asked.projectId, decision: "approve", maxCredits });
   const messages = [...asked.messages, ...decided.messages];
   if (decided.decision !== "approved") {
-    return { ...base, messages, status: "over_budget", credits: quote.credits, maxCredits, agentMessage: asked.reply };
+    return { ...base, messages, status: "over_budget", credits: quote.credits, maxCredits: effectiveBudget(maxCredits), agentMessage: asked.reply };
   }
 
   const failedAtOnce = failuresSinceLastPrompt(decided.messages);
