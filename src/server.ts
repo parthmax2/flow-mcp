@@ -22,6 +22,7 @@ import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
 import { creditsToday, getJob, listJobs, step as jobStep } from "./jobs.js";
 import { trackTools } from "./tracked.js";
+import { liveUrl, startLive } from "./live.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
 First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
@@ -719,6 +720,28 @@ server.registerTool(
   },
 );
 
+server.registerTool(
+  "flow_live",
+  {
+    title: "Open the live view of flow-mcp's work",
+    description:
+      "Returns the address of the live page (on this computer only) that shows every job as it happens: steps, " +
+      "progress, thumbnails of results, what needs the user and credits approved today. The Flow window also shows " +
+      "the current step in a small banner. open: true opens the page in the default browser. Free.",
+    inputSchema: { open: z.boolean().optional().describe("Open it in the default browser") },
+  },
+  async ({ open }) => {
+    const url = await startLive();
+    if (!url) return json({ live: false, message: `The live page is off (FLOW_LIVE=0) or its port is in use: try ${liveUrl()}` });
+    if (open) {
+      const { spawn } = await import("node:child_process");
+      const cmd = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
+      spawn(cmd[0] as string, cmd[1] as string[], { detached: true, stdio: "ignore" }).unref();
+    }
+    return json({ live: true, url });
+  },
+);
+
 server.registerPrompt(
   "flow_director",
   {
@@ -755,6 +778,8 @@ for (const file of skillFiles()) {
 /** Serves MCP over stdio. Nothing else may write to stdout while it runs. */
 export async function startServer(): Promise<void> {
   await server.connect(new StdioServerTransport());
+  // The live page starts with the server (127.0.0.1 only; FLOW_LIVE=0 turns it off). A second server finds the port taken and skips it.
+  void startLive();
 }
 
 // Started directly (e.g. `tsx src/server.ts`) rather than through the CLI's `serve`.

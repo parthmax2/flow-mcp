@@ -53,6 +53,8 @@ describe("why a call stopped", () => {
     expect(explain("You've reached your Flow Agent quota limit")).toMatchObject({ reason: "agent_quota", needsUser: true });
     expect(explain('Could not find "x" (id) in Flow\'s asset picker.')).toMatchObject({ reason: "asset_not_found", needsUser: false });
     expect(explain("something nobody expected").reason).toBe("unexpected");
+    expect(explain("Project abc is not in the Google account signed in to Flow (a@b.c).")).toMatchObject({ reason: "project_not_in_account", needsUser: true });
+    expect(explain("locator.click: Timeout 15000ms exceeded.").reason).toBe("control_not_clickable");
   });
 });
 

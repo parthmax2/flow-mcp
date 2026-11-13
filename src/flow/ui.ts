@@ -40,6 +40,29 @@ export interface ProjectChoice {
   newSession?: boolean;
 }
 
+/*
+ * A project id from another Google account (after switching accounts in the Flow window) sends
+ * Flow to its 404 page, where every later step would just time out on missing buttons.
+ */
+export class ProjectNotFoundError extends Error {
+  constructor(projectId: string, email?: string) {
+    super(
+      `Project ${projectId} is not in the Google account signed in to Flow${email ? ` (${email})` : ""}. It may belong to another ` +
+        "account: sign that one in again, or start a new project with new_project_title.",
+    );
+    this.name = "ProjectNotFoundError";
+  }
+}
+
+async function assertProjectFound(page: Page, projectId: string): Promise<void> {
+  // Flow redirects client-side, a moment after the page loads.
+  await page.waitForURL(/\/404|\/project\//, { timeout: 5_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  if (!new URL(page.url()).pathname.startsWith("/404")) return;
+  const { signedInEmail } = await import("./account.js");
+  throw new ProjectNotFoundError(projectId, await signedInEmail(page).catch(() => undefined));
+}
+
 export async function openProject(page: Page, choice: ProjectChoice): Promise<string> {
   const flow = new URL(config.flowUrl).origin;
   let projectId = choice.projectId;
@@ -48,6 +71,7 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
     if (new URL(page.url()).pathname !== `/project/${projectId}`) {
       await page.goto(`${flow}/project/${projectId}`, { waitUntil: "domcontentloaded" });
     }
+    await assertProjectFound(page, projectId);
     touchProject(projectId);
   } else if (choice.newProject || choice.newProjectTitle) {
     if (new URL(page.url()).pathname !== "/") await page.goto(flow, { waitUntil: "domcontentloaded" });

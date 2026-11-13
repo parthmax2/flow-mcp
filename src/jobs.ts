@@ -169,6 +169,8 @@ const CAUSES: { test: RegExp; reason: string; fix: string; needsUser?: boolean }
   { test: /agent quota|daily agent limit/i, reason: "agent_quota", fix: "Flow's daily agent limit is reached. Wait until tomorrow or switch Google accounts (see flow_status).", needsUser: true },
   { test: /sign(ed)? ?in|signed out|not signed/i, reason: "signed_out", fix: "Sign in to Google in the Flow window (flow_sign_in), then run flow_status.", needsUser: true },
   { test: /verification|captcha|challenge/i, reason: "challenge", fix: "Google wants a verification. Finish it in the Flow window, then try again.", needsUser: true },
+  { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
+  { test: /locator\.(click|fill)|Timeout \d+ms exceeded.*(click|waiting for)/i, reason: "control_not_clickable", fix: "A Flow control could not be used: a dialog may be open, or the page is not what was expected. Look at the Flow window, or run flow_status." },
   { test: /not waiting for an approval/i, reason: "no_open_quote", fix: "There is no quote to answer. Read flow_transcript to see what the agent said." },
   { test: /could not read the cost/i, reason: "unreadable_quote", fix: "The quote's cost could not be read, so nothing was approved. Check the Flow window and approve or reject there only if the user agrees.", needsUser: true },
   { test: /asset picker|could not find .* in flow/i, reason: "asset_not_found", fix: "Flow's picker did not show that media. Try again, or attach the file itself with attachments." },
