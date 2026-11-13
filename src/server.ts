@@ -20,6 +20,8 @@ import { downloadOptions, SIZES, upscale, type Size } from "./flow/upscale.js";
 import { generateVideo, VIDEO_MODELS, type VideoModel } from "./flow/video.js";
 import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
+import { creditsToday, getJob, listJobs, step as jobStep } from "./jobs.js";
+import { trackTools } from "./tracked.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
 First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
@@ -48,6 +50,8 @@ Capabilities: flow_capabilities lists everything Flow offers, what this server c
 carry nextSteps; offer them to the user (for example a free 2K upscale of a new image) rather than doing them unasked.`;
 
 const server = new McpServer({ name: "flow-mcp", version: VERSION }, { instructions: INSTRUCTIONS });
+// Work tools run as jobs (steps, state, reason and fix), readable with flow_job.
+trackTools(server);
 
 const json = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] });
 
@@ -89,6 +93,7 @@ function progressReporter(extra: { _meta?: { progressToken?: string | number }; 
   const token = extra._meta?.progressToken;
   let step = 0;
   return (message: string, percent?: number) => {
+    jobStep(message, percent !== undefined ? { percent } : {});
     if (token === undefined) return;
     const params = { progressToken: token, progress: percent ?? ++step, ...(percent !== undefined ? { total: 100 } : {}), message };
     extra.sendNotification({ method: "notifications/progress", params } as never).catch(() => {});
@@ -686,6 +691,32 @@ server.registerTool(
         fade: a.fade,
       }),
     ),
+);
+
+server.registerTool(
+  "flow_job",
+  {
+    title: "What a flow-mcp job is doing, or why it stopped",
+    description:
+      "Every image, video, download, upscale and join call is a job with steps (what happened and when), a state " +
+      "(running, rendering, done, needs_user, failed) and, when it stopped, a reason code and a fix. Pass job_id from " +
+      "a result (also given with errors) to see one job; omit it to list recent jobs and the credits approved today. " +
+      "Use it after an interrupted or failed call to find out what happened before trying anything again. Free.",
+    inputSchema: {
+      job_id: z.string().min(1).optional(),
+      limit: z.number().int().min(1).max(50).optional().describe("Recent jobs to list (default 10)"),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ job_id, limit }) => {
+    if (job_id) {
+      const job = getJob(job_id);
+      if (!job) throw new Error(`No job ${job_id}. List recent jobs with flow_job and no job_id.`);
+      return json(job);
+    }
+    const jobs = listJobs(limit ?? 10).map(({ steps, ...j }) => ({ ...j, lastStep: steps.at(-1)?.text, steps: steps.length }));
+    return json({ creditsApprovedToday: creditsToday(), jobs });
+  },
 );
 
 server.registerPrompt(

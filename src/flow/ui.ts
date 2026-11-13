@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
+import { step } from "../jobs.js";
 import { config, projectOutputDir } from "../config.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
@@ -129,7 +130,10 @@ export async function waitForAgentTurn(page: Page, timeoutMs = 300_000): Promise
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!(await stop.isVisible().catch(() => false))) return;
-    if ((await approval.count().catch(() => 0)) > 0) return;
+    if ((await approval.count().catch(() => 0)) > 0) {
+      step("Flow is waiting for a spend approval", { icon: "💳" });
+      return;
+    }
     await page.waitForTimeout(500);
   }
   throw new Error(`The Flow agent did not finish its reply within ${Math.round(timeoutMs / 1000)} s. Check the Flow window, or flow_transcript.`);
@@ -173,6 +177,7 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
         const type = (res.headers()["content-type"] ?? "").split(";")[0];
         const file = path.join(dir, `${m.id}.${EXT[type] ?? "bin"}`);
         writeFileSync(file, await res.body());
+        step(`Saved ${path.basename(file)}`, { icon: "⬇️" });
         return { ...m, file };
       }
       lastError = `HTTP ${res.status()}`;

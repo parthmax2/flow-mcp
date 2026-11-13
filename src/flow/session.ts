@@ -1,4 +1,5 @@
 import type { Page } from "playwright-core";
+import { healed, step } from "../jobs.js";
 import { callRpc, tapRpcs, type RpcTap } from "../browser/rpc.js";
 import { getFlowPage } from "../browser/connect.js";
 import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
@@ -143,10 +144,13 @@ export async function chatTurn(options: ChatOptions): Promise<ChatResult> {
     const quotaBefore = await quotaNotices(page);
     const exclude = new Set([...watch.found.keys(), ...attached.mediaIds]);
     const since = Date.now() / 1000 - CLOCK_SKEW_S;
+    step("Sending the prompt to Flow's agent", { icon: "✍️" });
     await sendPrompt(page, options.message);
     const turn = await finishTurn(page, projectId, before, watch, since, exclude, !!options.includeThinking);
     await assertNoNewQuotaNotice(page, quotaBefore);
     await forgetQuotaIfOver(page);
+    if (turn.reply) step("Flow's agent replied", { icon: "💬", detail: turn.reply.split("\n")[0].slice(0, 140) });
+    if (turn.pendingApproval) step(`Flow quoted ${turn.pendingApproval.credits ?? "?"} credits`, { icon: "💳", detail: turn.pendingApproval.question });
     return { ...turn, ...(attached.mediaIds.length ? { inputs: attached } : {}) };
   } finally {
     await watch.stop();
@@ -193,6 +197,7 @@ export async function decide(options: DecideOptions): Promise<DecideResult> {
     const card = page.locator("flow-permission-message").last();
     const choice = decision === "approved" ? "Approve" : "Reject";
     await card.getByRole("radio", { name: choice, exact: true }).click();
+    step(decision === "approved" ? `Approved ${approval.credits} credits` : decision === "rejected_over_budget" ? `Rejected: ${approval.credits} credits is over the budget of ${options.maxCredits}` : "Rejected the quote", { icon: "💳", kind: decision === "approved" ? "info" : "need" });
     const turn = await finishTurn(page, projectId, transcript.length, watch, since, exclude, !!options.includeThinking);
     return { ...turn, decision, ...(approval.credits !== undefined ? { credits: approval.credits } : {}) };
   } finally {
@@ -265,6 +270,7 @@ async function resolveFromViewer(page: Page, projectId: string, items: FlowMedia
     if (isFullSize(m)) continue;
     const url = await viewerUrl(page, projectId, m.id).catch(() => undefined);
     if (url) {
+      healed("Found the file on the media's viewer page", `${m.id.slice(0, 8)}: the project page only had a preview`);
       m.url = url;
       if (url.includes("/video/")) m.kind = "video";
     }
