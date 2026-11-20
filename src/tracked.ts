@@ -1,3 +1,5 @@
+import { readFileSync, statSync } from "node:fs";
+import path from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { getJob, runJob, type Job, type Notify, type Outcome } from "./jobs.js";
 
@@ -108,7 +110,33 @@ function chatProgress(extra?: Extra): Notify | undefined {
   };
 }
 
-type Handler = (...args: unknown[]) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>;
+type Content = { type: "text"; text: string } | { type: "image"; data: string; mimeType: string };
+type Handler = (...args: unknown[]) => Promise<{ content: Content[]; isError?: boolean }>;
+
+const IMAGE_TYPES: Record<string, string> = { ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp" };
+const MAX_IMAGES = 4;
+const MAX_IMAGE_BYTES = 1_500_000;
+
+/**
+ * The finished images as image content, so chat clients show them right in the conversation
+ * instead of only a file path. At most four, each under 1.5 MB (a 2K upscale is skipped);
+ * FLOW_RETURN_IMAGES=0 turns it off.
+ */
+export function imageBlocks(files: string[] = []): Content[] {
+  if (process.env.FLOW_RETURN_IMAGES === "0") return [];
+  const blocks: Content[] = [];
+  for (const file of files) {
+    const mimeType = IMAGE_TYPES[path.extname(file).toLowerCase()];
+    if (!mimeType || blocks.length >= MAX_IMAGES) continue;
+    try {
+      if (statSync(file).size > MAX_IMAGE_BYTES) continue;
+      blocks.push({ type: "image", data: readFileSync(file).toString("base64"), mimeType });
+    } catch {
+      // A file that cannot be read is simply not shown; its path is still in the result.
+    }
+  }
+  return blocks;
+}
 
 /** Makes the listed tools run as jobs, adding jobId to each result and a reason and fix to errors. */
 export function trackTools(server: McpServer): void {
@@ -125,18 +153,21 @@ export function trackTools(server: McpServer): void {
           () => handler(...args),
           (res) => {
             try {
-              return outcomeOf(JSON.parse(res.content[0]?.text ?? "{}") as Result);
+              const c = res.content[0];
+              return outcomeOf(JSON.parse(c?.type === "text" ? c.text : "{}") as Result);
             } catch {
               return { state: "done" };
             }
           },
           notify,
         );
-        const text = result.content[0]?.text;
+        const first = result.content[0];
+        const text = first?.type === "text" ? first.text : undefined;
         try {
           const body = JSON.parse(text ?? "") as Result;
-          if (body && typeof body === "object" && !Array.isArray(body)) {
-            result.content[0].text = JSON.stringify({ jobId: job.id, progress: timeline(job), ...body }, null, 2);
+          if (body && typeof body === "object" && !Array.isArray(body) && first?.type === "text") {
+            first.text = JSON.stringify({ jobId: job.id, progress: timeline(job), ...body }, null, 2);
+            result.content.push(...imageBlocks(job.files));
           }
         } catch {
           // Not JSON: leave the result as the tool made it.

@@ -6,7 +6,7 @@ import { control, dismissPopups } from "./adapter.js";
 import { config, projectOutputDir } from "../config.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
-import { parseBatchExecute, type FlowMedia } from "./batchexecute.js";
+import { fullImageUrl, IMAGE_PREVIEW, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
 import { setProjectTitle, startNewSession } from "./projects.js";
 
 /*
@@ -199,7 +199,8 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
     try {
       // The tab's request context carries the signed-in cookies some media URLs require. Videos
       // can take longer than Playwright's default 30 s request limit on a slow connection.
-      const res = await page.context().request.get(m.url, { timeout: 180_000 });
+      const url = m.kind !== "video" && IMAGE_PREVIEW.test(m.url) ? fullImageUrl(m.url) : m.url;
+      const res = await page.context().request.get(url, { timeout: 180_000 });
       if (res.ok()) {
         const type = (res.headers()["content-type"] ?? "").split(";")[0];
         const file = path.join(dir, `${m.id}.${EXT[type] ?? "bin"}`);

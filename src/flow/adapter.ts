@@ -20,6 +20,8 @@ export interface ControlDef {
   /** What flow_status calls it when it is missing. */
   label: string;
   where: "home" | "project";
+  /** Only on screen sometimes (or only in one layout): left out of the health check. */
+  optional?: boolean;
   /** Alternatives in the order they were seen on Flow; any one that is on the page counts. */
   find: Find[];
 }
@@ -59,14 +61,23 @@ export const CONTROLS = {
       (p) => p.locator("flow-base-prompt-box").getByRole("button", { name: "Settings" }),
     ],
   },
-  agentInstructions: {
-    label: "Agent instructions button",
+  sessionHistory: {
+    label: "Session history button",
     where: "project",
-    find: [
-      (p) => p.locator("flow-base-prompt-box").getByRole("button", { name: "Agent instructions" }),
-      // Not seen since the November 2026 redesign; where it moved to is unverified.
-      (p) => p.locator("flow-agent-panel").getByRole("button", { name: /Agent instructions/ }),
-    ],
+    find: [(p) => p.locator("flow-agent-panel").getByRole("button", { name: "Open session history" })],
+  },
+  // Flow's November 2026 redesign moved "Start new session" into the session history view.
+  newSessionLegacy: {
+    label: "Start new session button",
+    where: "project",
+    optional: true,
+    find: [(p) => p.locator("flow-agent-panel").getByRole("button", { name: "Start new session" })],
+  },
+  createSession: {
+    label: "Create new session button",
+    where: "project",
+    optional: true,
+    find: [(p) => p.locator("flow-agent-panel").getByRole("button", { name: /Create new session/ })],
   },
   projectTitle: {
     label: "Project title field",
@@ -84,7 +95,7 @@ export function control(page: Page, key: ControlKey): Locator {
 }
 
 export function controlsAt(where: ControlDef["where"]): { key: ControlKey; label: string }[] {
-  return (Object.entries(CONTROLS) as [ControlKey, ControlDef][]).filter(([, d]) => d.where === where).map(([key, d]) => ({ key, label: d.label }));
+  return (Object.entries(CONTROLS) as [ControlKey, ControlDef][]).filter(([, d]) => d.where === where && !d.optional).map(([key, d]) => ({ key, label: d.label }));
 }
 
 /*

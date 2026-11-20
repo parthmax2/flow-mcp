@@ -1,3 +1,4 @@
+import { control } from "./adapter.js";
 import type { Page } from "playwright-core";
 import { callRpc } from "../browser/rpc.js";
 import { loadRegistry } from "../state/registry.js";
@@ -57,6 +58,13 @@ export async function setProjectTitle(page: Page, title: string): Promise<void> 
 
 /** Starts a fresh agent chat in the open project: the media stays, the conversation memory does not. */
 export async function startNewSession(page: Page): Promise<void> {
-  await page.locator("flow-agent-panel").getByRole("button", { name: "Start new session" }).click({ timeout: 15_000 });
+  // The old layout has the button in the panel; the new one keeps it in the session history view.
+  const legacy = control(page, "newSessionLegacy").first();
+  if (await legacy.isVisible().catch(() => false)) {
+    await legacy.click({ timeout: 15_000 });
+  } else {
+    await control(page, "sessionHistory").first().click({ timeout: 15_000 });
+    await control(page, "createSession").first().click({ timeout: 15_000 });
+  }
   await page.waitForTimeout(1_000);
 }

@@ -2,7 +2,7 @@ import type { Page } from "playwright-core";
 import { healed, step } from "../jobs.js";
 import { callRpc, tapRpcs, type RpcTap } from "../browser/rpc.js";
 import { getFlowPage } from "../browser/connect.js";
-import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
+import { extractMedia, parseBatchExecute, type FlowMedia, IMAGE_PREVIEW } from "./batchexecute.js";
 import { assertNoNewQuotaNotice, failuresSinceLastPrompt, forgetQuotaIfOver, pendingApproval, quotaNotices, readTranscript, type Approval, type ChatMessage } from "./chat.js";
 import { attachInputs, type AttachedInputs } from "./assets.js";
 import { attachCharacters } from "./characters.js";
@@ -47,7 +47,10 @@ export interface TurnResult {
 
 export type ProgressFn = (message: string, percent?: number) => void;
 
-const isFullSize = (m: FlowMedia) => /^https:\/\/flow-content\.google\/(video|image)\//.test(m.url) && (m.kind !== "video" || m.url.includes("/video/"));
+const isFullSize = (m: FlowMedia) =>
+  (/^https:\/\/flow-content\.google\/(video|image)\//.test(m.url) && (m.kind !== "video" || m.url.includes("/video/"))) ||
+  // An image's preview link converts to the original (fullImageUrl) when it is downloaded.
+  (m.kind !== "video" && IMAGE_PREVIEW.test(m.url));
 
 /** Collects every media record the page receives, keyed by id. */
 class MediaWatch {

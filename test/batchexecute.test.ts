@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractMedia, parseBatchExecute } from "../src/flow/batchexecute.js";
+import { extractMedia, parseBatchExecute, fullImageUrl, IMAGE_PREVIEW } from "../src/flow/batchexecute.js";
 
 // Shapes copied from a recorded Flow session, with ids and signatures replaced.
 const MEDIA = "061867ca-0000-40dc-9f91-460bb0159b3a";
@@ -65,5 +65,19 @@ describe("extractMedia", () => {
 
   it("returns nothing for payloads without media", () => {
     expect(extractMedia([[["veo_3_1_fast", 1]]]).size).toBe(0);
+  });
+});
+
+describe("original-size image links", () => {
+  const preview = "https://lh3.googleusercontent.com/asb/ANqvLOac8q1uwa2lDAODWvXzNVurd1KLN0P8yjOnKhRd7nBmF-bT";
+  it("asks for the original with =s0, replacing any size suffix", () => {
+    expect(fullImageUrl(preview)).toBe(`${preview}=s0`);
+    expect(fullImageUrl(`${preview}=s512`)).toBe(`${preview}=s0`);
+    expect(fullImageUrl(`${preview}=w1376-h768-c`)).toBe(`${preview}=s0`);
+  });
+  it("recognizes generated images' preview links only", () => {
+    expect(IMAGE_PREVIEW.test(preview)).toBe(true);
+    expect(IMAGE_PREVIEW.test("https://lh3.googleusercontent.com/ogw/AF2bZy")).toBe(false);
+    expect(IMAGE_PREVIEW.test("https://flow-content.google/image/abc")).toBe(false);
   });
 });
