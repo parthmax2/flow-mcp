@@ -1,5 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { runJob, type Outcome } from "./jobs.js";
+import { getJob, runJob, type Job, type Notify, type Outcome } from "./jobs.js";
 
 /*
  * Which tools run as jobs, and how a tool's JSON result maps to the job's final state. Tools
@@ -84,6 +84,30 @@ export function outcomeOf(r: Result): Outcome {
   return { state: "done", ...base };
 }
 
+/**
+ * The job's steps as short lines for the chat, e.g. "📤 Uploading boat.png" or
+ * "🔁 Reopened the picker and attached it". The assistant shows these to the user.
+ */
+export function timeline(job: Job): string[] {
+  return job.steps.map((st) => `${st.icon} ${st.text}${st.detail && st.kind && st.kind !== "info" ? ` (${st.detail})` : ""}`);
+}
+
+interface Extra {
+  _meta?: { progressToken?: string | number };
+  sendNotification?: (n: never) => Promise<void>;
+}
+
+/** Sends job steps as MCP progress, which clients show live under the running tool call. */
+function chatProgress(extra?: Extra): Notify | undefined {
+  const token = extra?._meta?.progressToken;
+  if (token === undefined || !extra?.sendNotification) return undefined;
+  let n = 0;
+  return (message, percent) => {
+    const params = { progressToken: token, progress: percent ?? ++n, ...(percent !== undefined ? { total: 100 } : {}), message };
+    extra.sendNotification!({ method: "notifications/progress", params } as never).catch(() => {});
+  };
+}
+
 type Handler = (...args: unknown[]) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>;
 
 /** Makes the listed tools run as jobs, adding jobId to each result and a reason and fix to errors. */
@@ -93,6 +117,7 @@ export function trackTools(server: McpServer): void {
     if (!TRACKED.has(name)) return register(name, def, handler);
     const wrapped: Handler = async (...args) => {
       const input = (args[0] ?? {}) as Result;
+      const notify = chatProgress(args[1] as Extra | undefined);
       try {
         const { result, job } = await runJob(
           name,
@@ -105,15 +130,22 @@ export function trackTools(server: McpServer): void {
               return { state: "done" };
             }
           },
+          notify,
         );
         const text = result.content[0]?.text;
-        if (text?.startsWith("{")) result.content[0].text = `{\n  "jobId": "${job.id}",${text.slice(1)}`;
+        try {
+          const body = JSON.parse(text ?? "") as Result;
+          if (body && typeof body === "object" && !Array.isArray(body)) {
+            result.content[0].text = JSON.stringify({ jobId: job.id, progress: timeline(job), ...body }, null, 2);
+          }
+        } catch {
+          // Not JSON: leave the result as the tool made it.
+        }
         return result;
       } catch (err) {
         const e = err as Error & { jobId?: string };
-        const { getJob } = await import("./jobs.js");
         const job = e.jobId ? getJob(e.jobId) : undefined;
-        const body = { error: e.message.split("\n")[0], jobId: job?.id, reason: job?.reason, fix: job?.fix };
+        const body = { error: e.message.split("\n")[0], jobId: job?.id, reason: job?.reason, fix: job?.fix, ...(job ? { progress: timeline(job) } : {}) };
         return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
       }
     };

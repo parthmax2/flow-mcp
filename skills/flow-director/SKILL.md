@@ -33,7 +33,10 @@ Reference files (read when the step needs them, not up front):
   pass `confirm_rights: true` only after they confirm. Don't put real people in footage without their consent.
 - **Projects:** one project per piece of work. Continue it with `project_id` (the agent remembers, uploads are
   reused); start a new idea with `new_project_title` and a one-line `project_purpose`.
-- If a tool fails unexpectedly, run `flow_status` and tell the user its `fix`.
+- **Show the progress:** work tools return `progress`, the steps that happened. After each call, show those lines
+  to the user (a short list), including any self-fix (🔁) or stop (🛑) and its `fix`.
+- If a tool fails or a call was interrupted, read `flow_job` (its `jobId`, or none for recent jobs) for the reason
+  and fix; then `flow_status` if the reason is unclear. Never repeat a paid step to find out.
 - **Talking to the user:** reply in their language (prompts to Flow stay in English). Don't narrate tool calls or
   paste media ids and JSON; say what was made, what it cost and what's next.
 - **Truthful content:** don't invent claims, results, statistics or screenshots in ads and thumbnails. A style

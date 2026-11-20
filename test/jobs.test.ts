@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import { config } from "../src/config.js";
-import { explain, getJob, healed, listJobs, runJob, step } from "../src/jobs.js";
-import { outcomeOf } from "../src/tracked.js";
+import { explain, getJob, healed, listJobs, runJob, statusLine, step, type Job } from "../src/jobs.js";
+import { outcomeOf, timeline } from "../src/tracked.js";
 
 describe("jobs", () => {
   beforeEach(() => {
@@ -43,6 +43,25 @@ describe("jobs", () => {
     expect(job?.fix).toMatch(/flow_status/);
   });
 
+  it("sends each step to the chat as it happens, and lists them for the result", async () => {
+    const sent: string[] = [];
+    const { job } = await runJob(
+      "flow_wait",
+      "wait",
+      async () => {
+        step("Rendering 20%", { icon: "🎬", percent: 20 });
+        step("Rendering 70%", { icon: "🎬", percent: 70 }); // replaces the line above
+        healed("Found the file on the media's viewer page", "only a preview was listed");
+        step("Saved a.mp4");
+        return { status: "completed", files: [{ file: "a.mp4" }] };
+      },
+      (r) => outcomeOf(r),
+      (message) => sent.push(message),
+    );
+    expect(sent).toEqual(["🎬 Rendering 20%", "🎬 Rendering 70%", "🔁 Found the file on the media's viewer page (only a preview was listed)", "⬇️ Saved a.mp4"]);
+    expect(timeline(job)).toEqual(["🎬 Rendering 70%", "🔁 Found the file on the media's viewer page (only a preview was listed)", "⬇️ Saved a.mp4", "✅ Done: 1 file(s) saved"]);
+  });
+
   it("does nothing outside a job", () => {
     expect(() => step("no job here")).not.toThrow();
   });
@@ -66,5 +85,17 @@ describe("tool results to job states", () => {
     expect(outcomeOf({ status: "approved_elsewhere", credits: 10, warning: "w" })).toMatchObject({ state: "rendering", reason: "approved_elsewhere", credits: 10 });
     expect(outcomeOf({ results: [{ ok: true, files: [{ file: "x.jpg" }] }, { ok: false, error: "boom" }] })).toMatchObject({ state: "done", reason: "partly_failed", files: ["x.jpg"] });
     expect(outcomeOf({ decision: "rejected_over_budget" })).toMatchObject({ state: "needs_user", reason: "over_budget" });
+  });
+});
+
+describe("status line", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const job = (o: Partial<Job>): Job => ({ id: "j", tool: "generate_video", title: "a paper boat at dawn", startedAt: "2026-11-20T11:59:00Z", updatedAt: "2026-11-20T11:59:50Z", state: "running", steps: [{ at: "", icon: "💳", text: "Approved 10 credits" }], ...o });
+
+  it("shows the step while working, what is needed when stopped, and credits today", () => {
+    expect(statusLine([job({})], 10, now)).toBe("flow-mcp · 💳 Approved 10 credits · a paper boat at dawn · 10 credits today");
+    expect(statusLine([job({ state: "needs_user", reason: "over_budget" })], 0, now)).toBe("flow-mcp · 🛑 needs you: over_budget · a paper boat at dawn");
+    expect(statusLine([job({ state: "done", steps: [{ at: "", icon: "✅", text: "Done: 1 file(s) saved" }] })], 0, now)).toBe("flow-mcp · ✅ 1 file(s) saved (just now) · a paper boat at dawn");
+    expect(statusLine([], 0, now)).toBe("flow-mcp · idle");
   });
 });

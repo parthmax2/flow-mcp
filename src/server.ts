@@ -20,9 +20,9 @@ import { downloadOptions, SIZES, upscale, type Size } from "./flow/upscale.js";
 import { generateVideo, VIDEO_MODELS, type VideoModel } from "./flow/video.js";
 import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
-import { creditsToday, getJob, listJobs, step as jobStep } from "./jobs.js";
+import { creditsToday, currentJob, getJob, listJobs, step as jobStep } from "./jobs.js";
 import { trackTools } from "./tracked.js";
-import { liveUrl, startLive } from "./live.js";
+import { startBanner } from "./banner.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
 First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
@@ -47,6 +47,10 @@ set confirm_rights true only when they confirm (unless they allowed it in setup,
 Deleting: flow_trash previews first; only confirm after the user has seen the list and agreed.
 Quality: for anything beyond a single quick image (several shots, consistent characters, swaps, restyles), follow the
 flow-director skill if you have it, or this server's flow_director prompt and its ${RESOURCE_PREFIX}* resources.
+Progress: work tools return jobId and progress, the steps that happened (e.g. "📤 Uploading frame.png", "🔁 Picker
+missed the image, reopened it", "🛑 Over budget, nothing spent"). Show the user these lines briefly after each call, so
+they see what happened, including any self-fix. When a call fails or is interrupted, read flow_job (with its jobId, or
+without to list recent jobs) for the reason and fix before trying anything again.
 Capabilities: flow_capabilities lists everything Flow offers, what this server covers, costs and plan limits. Results
 carry nextSteps; offer them to the user (for example a free 2K upscale of a new image) rather than doing them unasked.`;
 
@@ -94,7 +98,8 @@ function progressReporter(extra: { _meta?: { progressToken?: string | number }; 
   const token = extra._meta?.progressToken;
   let step = 0;
   return (message: string, percent?: number) => {
-    jobStep(message, percent !== undefined ? { percent } : {});
+    // Inside a job the step is recorded and sent to the chat by the job itself.
+    if (currentJob()) return jobStep(message, percent !== undefined ? { percent } : {});
     if (token === undefined) return;
     const params = { progressToken: token, progress: percent ?? ++step, ...(percent !== undefined ? { total: 100 } : {}), message };
     extra.sendNotification({ method: "notifications/progress", params } as never).catch(() => {});
@@ -720,28 +725,6 @@ server.registerTool(
   },
 );
 
-server.registerTool(
-  "flow_live",
-  {
-    title: "Open the live view of flow-mcp's work",
-    description:
-      "Returns the address of the live page (on this computer only) that shows every job as it happens: steps, " +
-      "progress, thumbnails of results, what needs the user and credits approved today. The Flow window also shows " +
-      "the current step in a small banner. open: true opens the page in the default browser. Free.",
-    inputSchema: { open: z.boolean().optional().describe("Open it in the default browser") },
-  },
-  async ({ open }) => {
-    const url = await startLive();
-    if (!url) return json({ live: false, message: `The live page is off (FLOW_LIVE=0) or its port is in use: try ${liveUrl()}` });
-    if (open) {
-      const { spawn } = await import("node:child_process");
-      const cmd = process.platform === "win32" ? ["cmd", ["/c", "start", "", url]] : process.platform === "darwin" ? ["open", [url]] : ["xdg-open", [url]];
-      spawn(cmd[0] as string, cmd[1] as string[], { detached: true, stdio: "ignore" }).unref();
-    }
-    return json({ live: true, url });
-  },
-);
-
 server.registerPrompt(
   "flow_director",
   {
@@ -778,8 +761,7 @@ for (const file of skillFiles()) {
 /** Serves MCP over stdio. Nothing else may write to stdout while it runs. */
 export async function startServer(): Promise<void> {
   await server.connect(new StdioServerTransport());
-  // The live page starts with the server (127.0.0.1 only; FLOW_LIVE=0 turns it off). A second server finds the port taken and skips it.
-  void startLive();
+  startBanner();
 }
 
 // Started directly (e.g. `tsx src/server.ts`) rather than through the CLI's `serve`.

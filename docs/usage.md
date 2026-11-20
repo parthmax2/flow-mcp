@@ -76,6 +76,19 @@ Clips are scaled to the first clip's size, and clips without sound get silence. 
 voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `generate_video` or
 `flow_chat` to use them, so the same character looks the same across shots.
 
+## Seeing what it does
+
+Every image, video, download, upscale and join call is a **job**:
+
+- **While it runs**, each step shows under the tool call in your chat ("📤 Uploading frame.png", "💳 Approved 10
+  credits", "🎬 Rendering 62%", "⬇️ Saved"), in clients that show MCP progress. A thin banner at the top of the
+  Flow window shows the same step (`FLOW_BANNER=0` turns it off).
+- **When it finishes**, the result carries `progress`, the list of steps, which your assistant shows you. Problems
+  the server fixed itself are marked 🔁; anything that needs you is marked 🛑 with a reason and a fix.
+- **Afterwards**, `flow_job` tells your assistant what happened, even after an interrupted call.
+- **In Claude Code's status bar** (optional), `flow-mcp statusline` prints the current step and the credits approved
+  today. See [Getting started](getting-started.md#status-line).
+
 ## MCP tools
 
 | Tool | What it does | Cost |
@@ -92,6 +105,7 @@ voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `gen
 | `flow_chat` | Sends one message to Flow's agent and returns its exact reply | free |
 | `flow_approve` | Approves or rejects the agent's spend request, within `max_credits` | quoted credits |
 | `flow_wait` | Waits for media to finish and downloads it; `strip_audio` removes the sound from videos | free |
+| `flow_job` | What a job is doing or why it stopped: steps, state, reason and fix; recent jobs and credits approved today | free |
 | `flow_download` | Downloads media already in a project by id, without waiting (use it when a finished video stays "pending") | free |
 | `flow_transcript` | Reads a project's agent conversation | free |
 | `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |

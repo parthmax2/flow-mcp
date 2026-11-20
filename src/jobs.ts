@@ -41,6 +41,9 @@ export interface Job {
 }
 
 const context = new AsyncLocalStorage<Job>();
+/** Where a job's steps are also sent live, e.g. as MCP progress shown in the chat. Not saved. */
+export type Notify = (message: string, percent?: number) => void;
+const notifiers = new WeakMap<Job, Notify>();
 const recent = new Map<string, Job>();
 const listeners = new Set<(job: Job) => void>();
 const jobsDir = () => path.join(config.dataDir, "jobs");
@@ -84,17 +87,24 @@ export function step(text: string, options: { icon?: string; detail?: string; ki
   const job = context.getStore();
   if (!job) return;
   const last = job.steps.at(-1);
+  const icon = options.icon ?? iconFor(text);
   // Render polling repeats itself; keep one line per distinct message.
   if (last && last.text === text && last.detail === options.detail) return;
-  job.steps.push({
-    at: new Date().toISOString(),
-    icon: options.icon ?? iconFor(text),
-    text,
-    ...(options.detail ? { detail: options.detail } : {}),
-    ...(options.kind && options.kind !== "info" ? { kind: options.kind } : {}),
-  });
   if (options.percent !== undefined) job.percent = options.percent;
+  if (last && icon === "🎬" && last.icon === "🎬") {
+    // Render progress updates the line it is on instead of adding one per poll.
+    Object.assign(last, { at: new Date().toISOString(), text, ...(options.detail ? { detail: options.detail } : {}) });
+  } else {
+    job.steps.push({
+      at: new Date().toISOString(),
+      icon,
+      text,
+      ...(options.detail ? { detail: options.detail } : {}),
+      ...(options.kind && options.kind !== "info" ? { kind: options.kind } : {}),
+    });
+  }
   save(job);
+  notifiers.get(job)?.(`${icon} ${text}${options.detail && options.kind && options.kind !== "info" ? ` (${options.detail})` : ""}`, options.percent);
 }
 
 /** A step that records something going wrong and the server fixing it itself. */
@@ -125,10 +135,11 @@ export interface Outcome {
  * Runs a tool call as a job. `finish` maps the tool's result to the job's final state; a
  * thrown error ends it as failed, with a reason and fix from explain().
  */
-export async function runJob<T>(tool: string, title: string, work: () => Promise<T>, finish: (result: T) => Outcome): Promise<{ result: T; job: Job }> {
+export async function runJob<T>(tool: string, title: string, work: () => Promise<T>, finish: (result: T) => Outcome, notify?: Notify): Promise<{ result: T; job: Job }> {
   const now = new Date().toISOString();
   const job: Job = { id: newId(), tool, title: title.length > 120 ? `${title.slice(0, 119)}…` : title, startedAt: now, updatedAt: now, state: "running", steps: [] };
   save(job);
+  if (notify) notifiers.set(job, notify);
   return context.run(job, async () => {
     try {
       const result = await work();
@@ -166,11 +177,11 @@ export async function runJob<T>(tool: string, title: string, work: () => Promise
  * can act on and a fix in plain words. Order matters: the first match wins.
  */
 const CAUSES: { test: RegExp; reason: string; fix: string; needsUser?: boolean }[] = [
+  { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
+  { test: /locator\.(click|fill)|Timeout \d+ms exceeded.*(click|waiting for)/i, reason: "control_not_clickable", fix: "A Flow control could not be used: a dialog may be open, or the page is not what was expected. Look at the Flow window, or run flow_status." },
   { test: /agent quota|daily agent limit/i, reason: "agent_quota", fix: "Flow's daily agent limit is reached. Wait until tomorrow or switch Google accounts (see flow_status).", needsUser: true },
   { test: /sign(ed)? ?in|signed out|not signed/i, reason: "signed_out", fix: "Sign in to Google in the Flow window (flow_sign_in), then run flow_status.", needsUser: true },
   { test: /verification|captcha|challenge/i, reason: "challenge", fix: "Google wants a verification. Finish it in the Flow window, then try again.", needsUser: true },
-  { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
-  { test: /locator\.(click|fill)|Timeout \d+ms exceeded.*(click|waiting for)/i, reason: "control_not_clickable", fix: "A Flow control could not be used: a dialog may be open, or the page is not what was expected. Look at the Flow window, or run flow_status." },
   { test: /not waiting for an approval/i, reason: "no_open_quote", fix: "There is no quote to answer. Read flow_transcript to see what the agent said." },
   { test: /could not read the cost/i, reason: "unreadable_quote", fix: "The quote's cost could not be read, so nothing was approved. Check the Flow window and approve or reject there only if the user agrees.", needsUser: true },
   { test: /asset picker|could not find .* in flow/i, reason: "asset_not_found", fix: "Flow's picker did not show that media. Try again, or attach the file itself with attachments." },
@@ -228,4 +239,26 @@ export function creditsToday(): number {
   return listJobs(200)
     .filter((j) => new Date(j.startedAt) >= start)
     .reduce((sum, j) => sum + (j.state !== "needs_user" && j.state !== "failed" ? (j.credits ?? 0) : 0), 0);
+}
+
+const ago = (ms: number) => (ms < 60_000 ? "just now" : ms < 3_600_000 ? `${Math.round(ms / 60_000)} min ago` : `${Math.round(ms / 3_600_000)} h ago`);
+
+/**
+ * One line for Claude Code's status bar: the latest job's current step while it runs, what it
+ * needs when it stopped, or the last result; plus credits approved today.
+ */
+export function statusLine(jobs: Job[] = listJobs(1), credits = creditsToday(), now = Date.now()): string {
+  const job = jobs[0];
+  const tail = credits > 0 ? ` · ${credits} credits today` : "";
+  if (!job || now - Date.parse(job.updatedAt) > 2 * 3_600_000) return `flow-mcp · idle${tail}`;
+  const last = job.steps.at(-1);
+  const title = job.title.length > 32 ? `${job.title.slice(0, 31)}…` : job.title;
+  if (job.state === "running" || (job.state === "rendering" && now - Date.parse(job.updatedAt) < 10 * 60_000 && job.tool === "flow_wait")) {
+    const pct = job.percent !== undefined && job.percent < 100 ? ` ${job.percent}%` : "";
+    return `flow-mcp · ${last ? `${last.icon} ${last.text}` : "working"}${pct} · ${title}${tail}`;
+  }
+  if (job.state === "needs_user") return `flow-mcp · 🛑 needs you: ${job.reason ?? "a decision"} · ${title}${tail}`;
+  if (job.state === "failed") return `flow-mcp · ❌ ${job.reason ?? "failed"} · ${title}${tail}`;
+  if (job.state === "rendering") return `flow-mcp · 🎬 rendering in Flow (${ago(now - Date.parse(job.updatedAt))}) · ${title}${tail}`;
+  return `flow-mcp · ✅ ${last?.text.replace(/^Done: /, "") ?? "done"} (${ago(now - Date.parse(job.updatedAt))}) · ${title}${tail}`;
 }

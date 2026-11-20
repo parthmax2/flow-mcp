@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { step } from "../jobs.js";
+import { healed, step } from "../jobs.js";
 import { config, projectOutputDir } from "../config.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
@@ -63,6 +63,21 @@ async function assertProjectFound(page: Page, projectId: string): Promise<void> 
   throw new ProjectNotFoundError(projectId, await signedInEmail(page).catch(() => undefined));
 }
 
+/*
+ * Flow announces new features in a modal ("A faster, easier-to-reach Flow Agent", with "View all
+ * changelogs" and "Get started") that covers the page until dismissed, so every click behind
+ * it times out. It only informs, so closing it is safe; anything else is left to the user.
+ */
+export async function dismissAnnouncement(page: Page): Promise<void> {
+  const dialog = page.getByRole("dialog").filter({ hasText: /changelog|what.?s new|get started/i }).first();
+  if (!(await dialog.isVisible().catch(() => false))) return;
+  const title = (await dialog.locator("h1, h2, [role=heading]").first().innerText().catch(() => "")).trim();
+  const close = dialog.getByRole("button", { name: /get started|got it|close|dismiss/i }).first();
+  await close.click({ timeout: 5_000 }).catch(() => page.keyboard.press("Escape").catch(() => {}));
+  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
+  healed(`Closed Flow's "what's new" pop-up`, title ? `"${title}"` : undefined);
+}
+
 export async function openProject(page: Page, choice: ProjectChoice): Promise<string> {
   const flow = new URL(config.flowUrl).origin;
   let projectId = choice.projectId;
@@ -72,9 +87,12 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
       await page.goto(`${flow}/project/${projectId}`, { waitUntil: "domcontentloaded" });
     }
     await assertProjectFound(page, projectId);
+    await page.waitForTimeout(1_000);
     touchProject(projectId);
   } else if (choice.newProject || choice.newProjectTitle) {
     if (new URL(page.url()).pathname !== "/") await page.goto(flow, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_500);
+    await dismissAnnouncement(page);
     await page.getByRole("button", { name: /new project/i }).click({ timeout: 30_000 });
     await page.waitForURL(/\/project\/[0-9a-f-]{36}/, { timeout: 30_000 });
     projectId = projectIdOf(page.url())!;
@@ -88,6 +106,7 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
     }
     touchProject(projectId);
   }
+  await dismissAnnouncement(page);
   if (choice.newSession) await startNewSession(page);
   return projectId;
 }
