@@ -2,6 +2,7 @@ import type { Page } from "playwright-core";
 import { getBrowser } from "../browser/connect.js";
 import { config } from "../config.js";
 import { signedInEmail } from "./account.js";
+import { blockingPopup, control, controlsAt } from "./adapter.js";
 import { listProjects } from "./projects.js";
 import { readCredits } from "./ui.js";
 import { AGENT_QUOTA_HELP } from "./chat.js";
@@ -13,7 +14,7 @@ import { quotaReachedAt } from "../state/quota.js";
  * controls this tool relies on still exist. It runs in its own tab and closes it afterwards.
  */
 
-export type HealthState = "ready" | "browser_down" | "signed_out" | "challenge" | "blocked" | "ui_changed" | "agent_quota";
+export type HealthState = "ready" | "browser_down" | "signed_out" | "challenge" | "blocked" | "ui_changed" | "agent_quota" | "popup_open";
 
 export interface UiCheck {
   control: string;
@@ -36,18 +37,6 @@ export interface Health {
 // Text Flow or Google show when an account is challenged or limited.
 const CHALLENGE_TEXT = /unusual (activity|traffic)|verify (it's|that it's) you|PUBLIC_ERROR_UNUSUAL_ACTIVITY|confirm you're not a robot/i;
 const BLOCKED_TEXT = /isn't available in your (country|region)|account (has been|is) (suspended|disabled|restricted)|access denied|not eligible/i;
-
-const HOME_CONTROLS: [string, (p: Page) => ReturnType<Page["locator"]>][] = [["New project button", (p) => p.getByRole("button", { name: /new project/i })]];
-
-const PROJECT_CONTROLS: [string, (p: Page) => ReturnType<Page["locator"]>][] = [
-  ["Prompt box", (p) => p.getByRole("textbox", { name: "What do you want to create?" })],
-  ["Send button", (p) => p.locator('button[aria-label="Start generation"]')],
-  ["Add media menu (uploads)", (p) => p.getByRole("button", { name: "Add media menu" })],
-  ["Attach (ingredients) button", (p) => p.getByRole("button", { name: "Add ingredients to the prompt box" })],
-  ["Agent settings button", (p) => p.locator("flow-base-prompt-box").getByRole("button", { name: "Settings" })],
-  ["Agent instructions button", (p) => p.locator("flow-base-prompt-box").getByRole("button", { name: "Agent instructions" })],
-  ["Project title field", (p) => p.locator('input[aria-label="Editable text"]').first()],
-];
 
 async function present(locate: () => ReturnType<Page["locator"]>): Promise<boolean> {
   return locate()
@@ -100,15 +89,26 @@ export async function checkHealth(): Promise<Health> {
       return { state: "signed_out", ok: false, details: "Nobody is signed in to Flow in the controlled Chrome window.", fix: "Call flow_sign_in (or run `npx -y @parthmax/flow-mcp setup`) and sign in to Google in the window that opens." };
     }
 
+    const popup = await blockingPopup(tab);
+    if (popup) {
+      return {
+        state: "popup_open",
+        ok: false,
+        email,
+        details: `Signed in as ${email}, but Flow is showing a pop-up ("${popup}") that covers the page.`,
+        fix: "Close it in the Flow window (scroll to the end and click Get started), then run flow_status again.",
+      };
+    }
+
     const credits = await readCredits(tab).catch(() => undefined);
     const ui: UiCheck[] = [];
-    for (const [control, locate] of HOME_CONTROLS) ui.push({ control, where: "home", ok: await present(() => locate(tab)) });
+    for (const { key, label } of controlsAt("home")) ui.push({ control: label, where: "home", ok: await present(() => control(tab, key)) });
 
     // Project controls are checked in the most recently updated project, without changing it.
     const recent = (await listProjects(tab).catch(() => []))[0];
     if (recent) {
       await tab.goto(`${new URL(config.flowUrl).origin}/project/${recent.id}`, { waitUntil: "domcontentloaded" });
-      for (const [control, locate] of PROJECT_CONTROLS) ui.push({ control, where: "project", ok: await present(() => locate(tab)) });
+      for (const { key, label } of controlsAt("project")) ui.push({ control: label, where: "project", ok: await present(() => control(tab, key)) });
     }
 
     const limitedAt = quotaReachedAt(email);

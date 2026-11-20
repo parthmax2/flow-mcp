@@ -23,6 +23,7 @@ import { VERSION } from "./version.js";
 import { creditsToday, currentJob, getJob, listJobs, step as jobStep } from "./jobs.js";
 import { trackTools } from "./tracked.js";
 import { startBanner } from "./banner.js";
+import { installFailureProbe } from "./flow/adapter.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
 First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
@@ -147,7 +148,7 @@ server.registerTool(
     title: "Google Flow health check",
     description:
       "Checks that everything works and names the problem if not: state 'ready', or 'browser_down', 'signed_out', " +
-      "'challenge' (Google wants a verification), 'blocked', 'agent_quota' (the daily agent chat limit is used up), or 'ui_changed' (Flow's page changed; lists which controls " +
+      "'challenge' (Google wants a verification), 'blocked', 'agent_quota' (the daily agent chat limit is used up), 'popup_open' (a Flow notice covers the page and needs a person), or 'ui_changed' (Flow's page changed; lists which controls " +
       "are missing). Includes the signed-in account, credits and a fix to tell the user. Run it first, and whenever a " +
       "tool fails unexpectedly. Free; takes about 30 s.",
     annotations: { readOnlyHint: true },
@@ -762,6 +763,7 @@ for (const file of skillFiles()) {
 export async function startServer(): Promise<void> {
   await server.connect(new StdioServerTransport());
   startBanner();
+  installFailureProbe();
 }
 
 // Started directly (e.g. `tsx src/server.ts`) rather than through the CLI's `serve`.

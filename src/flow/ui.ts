@@ -1,7 +1,8 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { healed, step } from "../jobs.js";
+import { step } from "../jobs.js";
+import { control, dismissPopups } from "./adapter.js";
 import { config, projectOutputDir } from "../config.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
@@ -13,8 +14,6 @@ import { setProjectTitle, startNewSession } from "./projects.js";
  * own auth and verification exactly as when a person uses it.
  */
 
-const PROMPT_BOX = { role: "textbox", name: "What do you want to create?" } as const;
-const SEND_BUTTON = 'button[aria-label="Start generation"]';
 const CREDITS_RPC = "nzlxg";
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -63,21 +62,6 @@ async function assertProjectFound(page: Page, projectId: string): Promise<void> 
   throw new ProjectNotFoundError(projectId, await signedInEmail(page).catch(() => undefined));
 }
 
-/*
- * Flow announces new features in a modal ("A faster, easier-to-reach Flow Agent", with "View all
- * changelogs" and "Get started") that covers the page until dismissed, so every click behind
- * it times out. It only informs, so closing it is safe; anything else is left to the user.
- */
-export async function dismissAnnouncement(page: Page): Promise<void> {
-  const dialog = page.getByRole("dialog").filter({ hasText: /changelog|what.?s new|get started/i }).first();
-  if (!(await dialog.isVisible().catch(() => false))) return;
-  const title = (await dialog.locator("h1, h2, [role=heading]").first().innerText().catch(() => "")).trim();
-  const close = dialog.getByRole("button", { name: /get started|got it|close|dismiss/i }).first();
-  await close.click({ timeout: 5_000 }).catch(() => page.keyboard.press("Escape").catch(() => {}));
-  await dialog.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
-  healed(`Closed Flow's "what's new" pop-up`, title ? `"${title}"` : undefined);
-}
-
 export async function openProject(page: Page, choice: ProjectChoice): Promise<string> {
   const flow = new URL(config.flowUrl).origin;
   let projectId = choice.projectId;
@@ -92,7 +76,7 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
   } else if (choice.newProject || choice.newProjectTitle) {
     if (new URL(page.url()).pathname !== "/") await page.goto(flow, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(1_500);
-    await dismissAnnouncement(page);
+    await dismissPopups(page);
     await page.getByRole("button", { name: /new project/i }).click({ timeout: 30_000 });
     await page.waitForURL(/\/project\/[0-9a-f-]{36}/, { timeout: 30_000 });
     projectId = projectIdOf(page.url())!;
@@ -106,7 +90,7 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
     }
     touchProject(projectId);
   }
-  await dismissAnnouncement(page);
+  await dismissPopups(page);
   if (choice.newSession) await startNewSession(page);
   return projectId;
 }
@@ -119,7 +103,7 @@ export async function clearPrompt(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
   // Right after a load the prompt box (and its clear button) is not drawn yet; checking then
   // would leave attachments from an earlier, failed request in place to be sent again.
-  await page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name }).waitFor({ timeout: 30_000 }).catch(() => {});
+  await control(page, "promptBox").waitFor({ timeout: 30_000 }).catch(() => {});
   await page.waitForTimeout(500);
   const clear = page.getByRole("button", { name: "Clear prompt" });
   if (await clear.isVisible().catch(() => false)) {
@@ -134,7 +118,7 @@ export async function clearPrompt(page: Page): Promise<void> {
  * a request that never answers.
  */
 export async function sendPrompt(page: Page, text: string): Promise<void> {
-  const box = page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name });
+  const box = control(page, "promptBox");
   const boxText = async () => (await box.innerText().catch(() => "")).trim();
   for (let attempt = 1; attempt <= 2; attempt++) {
     await box.click({ timeout: 30_000 });
@@ -143,7 +127,7 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
       await page.waitForTimeout(300);
     }
     if (!(await boxText())) throw new Error("Flow's prompt box would not take the text. Check the Flow window, then try again.");
-    await page.locator(SEND_BUTTON).click({ timeout: 10_000 });
+    await control(page, "sendButton").click({ timeout: 10_000 });
     for (let i = 0; i < 20; i++) {
       if (!(await boxText())) return;
       await page.waitForTimeout(500);

@@ -38,6 +38,8 @@ export interface Job {
   reason?: string;
   /** What to do about it, in plain words for the user and the assistant. */
   fix?: string;
+  /** A screenshot of the Flow window taken when the job failed. */
+  screenshot?: string;
 }
 
 const context = new AsyncLocalStorage<Job>();
@@ -47,6 +49,15 @@ const notifiers = new WeakMap<Job, Notify>();
 const recent = new Map<string, Job>();
 const listeners = new Set<(job: Job) => void>();
 const jobsDir = () => path.join(config.dataDir, "jobs");
+/** Where job records and failure screenshots are kept. */
+export const jobsFolder = jobsDir;
+
+/** Looks at the Flow window when a job fails, so the cause can be named and a screenshot kept. */
+export type FailureProbe = (jobId: string) => Promise<{ blocker?: string; screenshot?: string } | undefined>;
+let failureProbe: FailureProbe | undefined;
+export function setFailureProbe(probe: FailureProbe | undefined): void {
+  failureProbe = probe;
+}
 
 function save(job: Job): void {
   job.updatedAt = new Date().toISOString();
@@ -162,7 +173,16 @@ export async function runJob<T>(tool: string, title: string, work: () => Promise
       return { result, job };
     } catch (err) {
       const message = err instanceof Error ? err.message.split("\n")[0] : String(err);
-      const why = explain(message);
+      let why = explain(message);
+      const seen = await failureProbe?.(job.id).catch(() => undefined);
+      if (seen?.blocker && !/pop-up .* covers the page/i.test(message)) {
+        why = {
+          reason: "flow_popup",
+          needsUser: true,
+          fix: `Flow is showing a pop-up ("${seen.blocker}") that covers the page. Close it in the Flow window (scroll to the end and click Get started), then try again.`,
+        };
+      }
+      if (seen?.screenshot) job.screenshot = seen.screenshot;
       Object.assign(job, { state: why.needsUser ? "needs_user" : "failed", reason: why.reason, fix: why.fix });
       job.steps.push({ at: new Date().toISOString(), icon: why.needsUser ? "🛑" : "❌", text: message, detail: why.fix, kind: why.needsUser ? "need" : "error" });
       save(job);
@@ -177,6 +197,7 @@ export async function runJob<T>(tool: string, title: string, work: () => Promise
  * can act on and a fix in plain words. Order matters: the first match wins.
  */
 const CAUSES: { test: RegExp; reason: string; fix: string; needsUser?: boolean }[] = [
+  { test: /pop-up .* covers the page/i, reason: "flow_popup", fix: "Flow is showing a pop-up that covers the page. Close it in the Flow window (scroll to the end and click Get started), then try again.", needsUser: true },
   { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
   { test: /locator\.(click|fill)|Timeout \d+ms exceeded.*(click|waiting for)/i, reason: "control_not_clickable", fix: "A Flow control could not be used: a dialog may be open, or the page is not what was expected. Look at the Flow window, or run flow_status." },
   { test: /agent quota|daily agent limit/i, reason: "agent_quota", fix: "Flow's daily agent limit is reached. Wait until tomorrow or switch Google accounts (see flow_status).", needsUser: true },

@@ -145,7 +145,7 @@ export function trackTools(server: McpServer): void {
       } catch (err) {
         const e = err as Error & { jobId?: string };
         const job = e.jobId ? getJob(e.jobId) : undefined;
-        const body = { error: e.message.split("\n")[0], jobId: job?.id, reason: job?.reason, fix: job?.fix, ...(job ? { progress: timeline(job) } : {}) };
+        const body = { error: e.message.split("\n")[0], jobId: job?.id, reason: job?.reason, fix: job?.fix, ...(job?.screenshot ? { screenshot: job.screenshot } : {}), ...(job ? { progress: timeline(job) } : {}) };
         return { isError: true, content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
       }
     };

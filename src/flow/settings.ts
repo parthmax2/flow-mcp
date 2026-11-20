@@ -1,3 +1,4 @@
+import { control } from "./adapter.js";
 import type { Locator, Page } from "playwright-core";
 import { openProject } from "./ui.js";
 
@@ -57,13 +58,13 @@ async function closePanel(page: Page): Promise<void> {
 
 async function openSettings(page: Page): Promise<void> {
   await closePanel(page);
-  await page.locator("flow-base-prompt-box").getByRole("button", { name: "Settings" }).click({ timeout: 30_000 });
+  await control(page, "agentSettings").first().click({ timeout: 30_000 });
   await panel(page).getByText("Agent settings").first().waitFor({ timeout: 15_000 });
 }
 
 async function openInstructions(page: Page): Promise<void> {
   await closePanel(page);
-  await page.locator("flow-base-prompt-box").getByRole("button", { name: "Agent instructions" }).click({ timeout: 30_000 });
+  await control(page, "agentInstructions").first().click({ timeout: 30_000 });
   await panel(page).getByRole("button", { name: /Add instruction/ }).waitFor({ timeout: 15_000 });
 }
 

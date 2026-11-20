@@ -106,7 +106,8 @@ Make shot 1 first, review it and show it to the user before the rest: a wrong lo
 there. Keep a ledger of shots, media ids, files and credits as you go (`references/review.md`), so an interruption
 never costs a second render. For each shot, in order:
 
-1. `generate_video` with a full prompt (`references/prompting.md`) and inputs by role. A video is made **either**
+1. `generate_video` with a full prompt, always passing `model` (default `veo-3.1-lite`; a project's default video model
+   can change, and Flow's newer default may cost more than the 10 credits the user accepted) (`references/prompting.md`) and inputs by role. A video is made **either**
    from frames **or** from references, never both:
    - `characters: [names]`: the Flow characters, with their voices. Best for shots where characters speak; Flow
      uses Omni for them (about 15 credits for 10 s).

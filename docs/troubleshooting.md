@@ -15,9 +15,14 @@ npx -y @parthmax/flow-mcp status
 | `challenge` | Google wants a verification; finish it in the Chrome window |
 | `blocked` | Google is blocking the account or the request |
 | `ui_changed` | Flow's page changed; the report lists the controls that went missing |
+| `popup_open` | A Flow notice (e.g. "What's new") covers the page; some can only be closed by a person: scroll to the end and click Get started in the Flow window |
 | `agent_quota` | The account used up Flow's daily agent chat limit; wait a day or switch accounts (below) |
 
 ## Common problems
+
+- **A job fails with `flow_popup`:** Flow is showing a pop-up that covers the page. flow-mcp closes the ones that
+  can be closed safely; for the rest, close it in the Flow window and try again. A failed job keeps a screenshot of
+  the Flow window next to its record in `data/jobs/` (the path is in the result's `screenshot`).
 
 - **`generate_video` says `approval_expired`:** Flow cancelled its quote before it was answered. Nothing was
   spent; asking again is safe.
