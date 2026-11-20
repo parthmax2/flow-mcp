@@ -33,6 +33,8 @@ Reference files (read when the step needs them, not up front):
   pass `confirm_rights: true` only after they confirm. Don't put real people in footage without their consent.
 - **Projects:** one project per piece of work. Continue it with `project_id` (the agent remembers, uploads are
   reused); start a new idea with `new_project_title` and a one-line `project_purpose`.
+- **Images show in the chat** (the result carries them), so don't describe or re-open files the user can already see;
+  mention the file paths and offer the 2K upscale.
 - **Show the progress:** work tools return `progress`, the steps that happened. After each call, show those lines
   to the user (a short list), including any self-fix (🔁) or stop (🛑) and its `fix`.
 - If a tool fails or a call was interrupted, read `flow_job` (its `jobId`, or none for recent jobs) for the reason

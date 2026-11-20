@@ -27,8 +27,8 @@ export const CAPABILITIES: Capability[] = [
   { area: "Chat agent", feature: "Talk to the Flow agent turn by turn", tool: "flow_chat", cost: "free", plan: "free", notes: "Returns the agent's exact reply, optional thinking, pending approvals." },
   { area: "Chat agent", feature: "Approve / reject a spend request", tool: "flow_approve", cost: "the quoted credits", plan: "free", notes: "Never picks 'Always approve'; rejects above max_credits." },
   { area: "Chat agent", feature: "Read a project's conversation", tool: "flow_transcript", cost: "free", plan: "free" },
-  { area: "Chat agent", feature: "Default aspect, count and model for images and videos (per project)", tool: "flow_settings", cost: "free", plan: "free", notes: "Flow's default image count is 2; set 1 to avoid doubles." },
-  { area: "Chat agent", feature: "Standing agent instructions (up to 3, per project)", tool: "flow_settings", cost: "free", plan: "free" },
+  { area: "Chat agent", feature: "Default aspect, count and model for images and videos (per project)", tool: "flow_settings", cost: "free", plan: "free", notes: "Flow's default image count is 2; set 1 to avoid doubles. Changes save as clicked (November 2026 layout: Image defaults / Video defaults views)." },
+  { area: "Chat agent", feature: "Standing agent instructions, Flow's \"Memory\" (up to 3, per project)", tool: "flow_settings", cost: "free", plan: "free", notes: "Called Agent instructions before November 2026." },
   { area: "Chat agent", feature: "Approval mode (ask before spending credits)", tool: "flow_settings", cost: "free", plan: "free", notes: "Only 'always' can be set; chats and videos refuse to run on 'never'." },
 
   { area: "Images", feature: "Generate images (Nano Banana 2.1)", tool: "generate_image", cost: "free", plan: "free", notes: "Agent default is 2 images; aspect 16:9, 4:3, 1:1, 3:4, 9:16." },
@@ -40,9 +40,9 @@ export const CAPABILITIES: Capability[] = [
   { area: "Images", feature: "Crop", tool: null, cost: "free", plan: "free" },
 
   { area: "Videos", feature: "Text to video, Veo 3.1 Lite (8 s)", tool: "generate_video / flow_chat", cost: "10 credits", plan: "free", notes: "Free tier: 8 s only for Lite." },
-  { area: "Videos", feature: "Text to video, Veo 3.1 Fast / Quality", tool: "generate_video (model)", cost: "more credits (quoted by Flow)", plan: "free", notes: "Not tested yet." },
+  { area: "Videos", feature: "Text to video, Veo 3.1 Fast / Quality", tool: "generate_video (model)", cost: "more credits (quoted by Flow)", plan: "free", notes: "Not tested yet. Flow's model list marks both \"Leaving Dec 5\" (November 2026)." },
   { area: "Videos", feature: "Image to video: start / end frame, ingredients (references)", tool: "generate_video (start_frame, end_frame, ingredients)", cost: "quoted by Flow", plan: "free", notes: "Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both." },
-  { area: "Videos", feature: "Video-to-video edit, Omni 1.1 Flash", tool: "generate_video (source_video)", cost: "20 credits at 720p", plan: "free", notes: "Output keeps the source clip's length." },
+  { area: "Videos", feature: "Video-to-video edit, Omni Flash", tool: "generate_video (source_video)", cost: "20 credits at 720p (Omni 1.1, October 2026)", plan: "free", notes: "Output keeps the source clip's length. Omni 1.2 Flash is the new default; 1.1 leaves Dec 5 2026; 1.2 cost not measured." },
   { area: "Videos", feature: "Still frame of a video (first, last, at a time), e.g. to start the next shot on", tool: "flow_frame", cost: "free", plan: "free", notes: "Decoded locally in Chrome; Flow's own Save frame is not used." },
   { area: "Videos", feature: "Download at full quality (mp4)", tool: "flow_wait / flow_download / generate_video", cost: "free", plan: "free", notes: "1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting." },
   { area: "Videos", feature: "Remove the sound from downloaded videos", tool: "flow_wait / flow_download (strip_audio)", cost: "free", plan: "free", notes: "Veo adds sound even when asked for silence; stripped locally with ffmpeg." },

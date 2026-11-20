@@ -27,8 +27,8 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Talk to the Flow agent turn by turn | `flow_chat` | free | free | Returns the agent's exact reply, optional thinking, pending approvals. |
 | Approve / reject a spend request | `flow_approve` | the quoted credits | free | Never picks 'Always approve'; rejects above max_credits. |
 | Read a project's conversation | `flow_transcript` | free | free |  |
-| Default aspect, count and model for images and videos (per project) | `flow_settings` | free | free | Flow's default image count is 2; set 1 to avoid doubles. |
-| Standing agent instructions (up to 3, per project) | `flow_settings` | free | free |  |
+| Default aspect, count and model for images and videos (per project) | `flow_settings` | free | free | Flow's default image count is 2; set 1 to avoid doubles. Changes save as clicked (November 2026 layout: Image defaults / Video defaults views). |
+| Standing agent instructions, Flow's "Memory" (up to 3, per project) | `flow_settings` | free | free | Called Agent instructions before November 2026. |
 | Approval mode (ask before spending credits) | `flow_settings` | free | free | Only 'always' can be set; chats and videos refuse to run on 'never'. |
 
 ## Images
@@ -48,9 +48,9 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
 | Text to video, Veo 3.1 Lite (8 s) | `generate_video / flow_chat` | 10 credits | free | Free tier: 8 s only for Lite. |
-| Text to video, Veo 3.1 Fast / Quality | `generate_video (model)` | more credits (quoted by Flow) | free | Not tested yet. |
+| Text to video, Veo 3.1 Fast / Quality | `generate_video (model)` | more credits (quoted by Flow) | free | Not tested yet. Flow's model list marks both "Leaving Dec 5" (November 2026). |
 | Image to video: start / end frame, ingredients (references) | `generate_video (start_frame, end_frame, ingredients)` | quoted by Flow | free | Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both. |
-| Video-to-video edit, Omni 1.1 Flash | `generate_video (source_video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
+| Video-to-video edit, Omni Flash | `generate_video (source_video)` | 20 credits at 720p (Omni 1.1, October 2026) | free | Output keeps the source clip's length. Omni 1.2 Flash is the new default; 1.1 leaves Dec 5 2026; 1.2 cost not measured. |
 | Still frame of a video (first, last, at a time), e.g. to start the next shot on | `flow_frame` | free | free | Decoded locally in Chrome; Flow's own Save frame is not used. |
 | Download at full quality (mp4) | `flow_wait / flow_download / generate_video` | free | free | 1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting. |
 | Remove the sound from downloaded videos | `flow_wait / flow_download (strip_audio)` | free | free | Veo adds sound even when asked for silence; stripped locally with ffmpeg. |

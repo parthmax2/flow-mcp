@@ -85,6 +85,8 @@ Every image, video, download, upscale and join call is a **job**:
   Flow window shows the same step (`FLOW_BANNER=0` turns it off).
 - **When it finishes**, the result carries `progress`, the list of steps, which your assistant shows you. Problems
   the server fixed itself are marked 🔁; anything that needs you is marked 🛑 with a reason and a fix.
+- **Images appear in the chat:** results of image calls carry up to four finished images (each under 1.5 MB) as
+  image content, so chat clients show them in the conversation. `FLOW_RETURN_IMAGES=0` returns paths only.
 - **Afterwards**, `flow_job` tells your assistant what happened, even after an interrupted call.
 - **In Claude Code's status bar** (optional), `flow-mcp statusline` prints the current step and the credits approved
   today. See [Getting started](getting-started.md#status-line).
@@ -108,7 +110,7 @@ Every image, video, download, upscale and join call is a **job**:
 | `flow_job` | What a job is doing or why it stopped: steps, state, reason and fix; recent jobs and credits approved today | free |
 | `flow_download` | Downloads media already in a project by id, without waiting (use it when a finished video stays "pending") | free |
 | `flow_transcript` | Reads a project's agent conversation | free |
-| `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
+| `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and its standing instructions (Flow's "Memory") | free |
 | `generate_video` | Starts a video within budget; inputs take a role (see above) | quoted credits |
 | `flow_frame` | Saves a video's first, last or timed frame as PNG | free |
 | `flow_assemble` | Joins clips into one mp4 on your computer, with optional music or voice-over and fades (needs ffmpeg) | free |

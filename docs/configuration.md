@@ -10,6 +10,7 @@ flow-mcp needs no configuration after `setup`. These environment variables chang
 | `FLOW_CHROME_PATH` | auto-detected | Chrome executable, if it is not found |
 | `FFMPEG_PATH` | `ffmpeg` on the PATH | The ffmpeg program `flow_assemble` uses to join clips |
 | `FLOW_MAX_CREDITS_PER_CALL` | none | The most credits any one approval may spend, whatever a call's `max_credits` says (e.g. `10` for Veo 3.1 Lite only) |
+| `FLOW_RETURN_IMAGES` | on | `0` returns image file paths only, without the images themselves in the result |
 | `FLOW_BANNER` | on | `0` hides the step banner flow-mcp shows at the top of the Flow window |
 | `FLOW_CONFIRM_RIGHTS` | setup choice | `1` or `0` to override whether uploads confirm Flow's rights notice |
 
