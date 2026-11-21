@@ -16,10 +16,16 @@ import { assemble, stripAudio } from "./assemble.js";
 import { createCharacter, listCharacters, listVoices, updateCharacter } from "./flow/characters.js";
 import { directorGuide, readSkillFile, RESOURCE_PREFIX, skillFiles } from "./director.js";
 import { findDuplicateUploads, previewTrash, trashMedia } from "./flow/trash.js";
-import { downloadOptions, SIZES, upscale, type Size } from "./flow/upscale.js";
+import { downloadOptions, SIZES, upscale, ViewerUnavailableError, type Size } from "./flow/upscale.js";
+import { localUpscale } from "./localUpscale.js";
+import { findSavedMedia } from "./storage.js";
 import { generateVideo, VIDEO_MODELS, type VideoModel } from "./flow/video.js";
 import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
+import { creditsToday, currentJob, getJob, listJobs, step as jobStep } from "./jobs.js";
+import { trackTools } from "./tracked.js";
+import { startBanner } from "./banner.js";
+import { installFailureProbe } from "./flow/adapter.js";
 
 const INSTRUCTIONS = `This server drives Google Flow's creative agent in the user's own signed-in Chrome.
 First use, or flow_status says signed_out: call flow_sign_in and tell the user to sign in to Google in the window it opens.
@@ -44,14 +50,26 @@ set confirm_rights true only when they confirm (unless they allowed it in setup,
 Deleting: flow_trash previews first; only confirm after the user has seen the list and agreed.
 Quality: for anything beyond a single quick image (several shots, consistent characters, swaps, restyles), follow the
 flow-director skill if you have it, or this server's flow_director prompt and its ${RESOURCE_PREFIX}* resources.
+Progress: work tools return jobId and progress, the steps that happened (e.g. "📤 Uploading frame.png", "🔁 Picker
+missed the image, reopened it", "🛑 Over budget, nothing spent"). Show the user these lines briefly after each call, so
+they see what happened, including any self-fix. When a call fails or is interrupted, read flow_job (with its jobId, or
+without to list recent jobs) for the reason and fix before trying anything again.
 Capabilities: flow_capabilities lists everything Flow offers, what this server covers, costs and plan limits. Results
 carry nextSteps; offer them to the user (for example a free 2K upscale of a new image) rather than doing them unasked.`;
 
 const server = new McpServer({ name: "flow-mcp", version: VERSION }, { instructions: INSTRUCTIONS });
+// Work tools run as jobs (steps, state, reason and fix), readable with flow_job.
+trackTools(server);
 
 const json = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] });
 
 /** Follow-ups Flow offers for new media, so the connected AI can propose them to the user. */
+const saveToField = z
+  .string()
+  .min(1)
+  .optional()
+  .describe("A folder on this computer to save the files in, e.g. a \"raw\" folder in the user's project. Default: output/<project id>/raw. Created if missing");
+
 const stripAudioField = z
   .boolean()
   .optional()
@@ -89,6 +107,8 @@ function progressReporter(extra: { _meta?: { progressToken?: string | number }; 
   const token = extra._meta?.progressToken;
   let step = 0;
   return (message: string, percent?: number) => {
+    // Inside a job the step is recorded and sent to the chat by the job itself.
+    if (currentJob()) return jobStep(message, percent !== undefined ? { percent } : {});
     if (token === undefined) return;
     const params = { progressToken: token, progress: percent ?? ++step, ...(percent !== undefined ? { total: 100 } : {}), message };
     extra.sendNotification({ method: "notifications/progress", params } as never).catch(() => {});
@@ -136,7 +156,7 @@ server.registerTool(
     title: "Google Flow health check",
     description:
       "Checks that everything works and names the problem if not: state 'ready', or 'browser_down', 'signed_out', " +
-      "'challenge' (Google wants a verification), 'blocked', 'agent_quota' (the daily agent chat limit is used up), or 'ui_changed' (Flow's page changed; lists which controls " +
+      "'challenge' (Google wants a verification), 'blocked', 'agent_quota' (the daily agent chat limit is used up), 'popup_open' (a Flow notice covers the page and needs a person), or 'ui_changed' (Flow's page changed; lists which controls " +
       "are missing). Includes the signed-in account, credits and a fix to tell the user. Run it first, and whenever a " +
       "tool fails unexpectedly. Free; takes about 30 s.",
     annotations: { readOnlyHint: true },
@@ -275,6 +295,7 @@ server.registerTool(
     inputSchema: {
       prompt: z.string().min(1).describe("What to create or change"),
       count: imageCount,
+      save_to: saveToField,
       ...projectFields,
       attachments,
       confirm_rights: confirmRights,
@@ -311,6 +332,7 @@ server.registerTool(
         .max(12),
       count: imageCount.describe("Images per job, for every job without its own count (default: the project's setting, 2 unless changed)"),
       parallel: z.number().int().min(1).max(3).optional().describe("Tabs at once (default 3)"),
+      save_to: saveToField,
       ...projectFields,
       confirm_rights: confirmRights,
     },
@@ -326,6 +348,19 @@ server.registerTool(
   },
 );
 
+/** Upscales through Flow; for an image Flow's viewer will not open, optionally makes a labelled local 2x copy. */
+async function upscaleOne(page: Awaited<ReturnType<typeof getFlowPage>>, projectId: string, id: string, size: Size, report: ((message: string) => void) | undefined, allowLocal: boolean) {
+  try {
+    return await upscale(page, projectId, id, size, report);
+  } catch (err) {
+    if (!(err instanceof ViewerUnavailableError) || !allowLocal) throw err;
+    report?.("Flow's viewer will not open this image; making a 2x copy on this computer");
+    const raw = findSavedMedia(projectId, id) ?? (await downloadMedia(projectId, [id])).files[0]?.file;
+    if (!raw) throw err;
+    return localUpscale(projectId, id, raw);
+  }
+}
+
 server.registerTool(
   "flow_upscale",
   {
@@ -340,22 +375,28 @@ server.registerTool(
       media_id: z.string().uuid().optional(),
       media_ids: z.array(z.string().uuid()).min(1).max(20).optional().describe("Several media to upscale to the same size"),
       size: z.enum(Object.keys(SIZES) as [Size, ...Size[]]).optional().describe("1k (original), 2k or 4k; omit to list the options"),
+      allow_local: z
+        .boolean()
+        .optional()
+        .describe("If Flow's viewer will not open an image (an older version of an edited image), make a 2x copy on this computer instead: plain resampling, not Flow's upscaler"),
+      save_to: saveToField,
     },
   },
-  async ({ project_id, media_id, media_ids, size }, extra) =>
+  async ({ project_id, media_id, media_ids, size, allow_local }, extra) =>
     json(
       await serialize(async () => {
         const page = await getFlowPage();
         const ids = [...(media_id ? [media_id] : []), ...(media_ids ?? [])];
         if (ids.length === 0) throw new Error("Give media_id or media_ids.");
         if (!size) return { options: await downloadOptions(page, project_id, ids[0]) };
-        if (ids.length === 1) return upscale(page, project_id, ids[0], size, progressReporter(extra));
+        const one = (id: string, report?: (message: string) => void) => upscaleOne(page, project_id, id, size, report, !!allow_local);
+        if (ids.length === 1) return one(ids[0], progressReporter(extra));
         const report = progressReporter(extra);
         const results = [];
         for (const [i, id] of ids.entries()) {
           report(`upscaling ${i + 1} of ${ids.length}`);
           try {
-            results.push({ ok: true, ...(await upscale(page, project_id, id, size, report)) });
+            results.push({ ok: true, ...(await one(id, report)) });
           } catch (err) {
             results.push({ ok: false, mediaId: id, error: err instanceof Error ? err.message.split("\n")[0] : String(err) });
           }
@@ -481,6 +522,7 @@ server.registerTool(
       since: z.number().optional().describe("Epoch seconds; media created after it"),
       timeout_seconds: z.number().int().min(10).max(600).optional().describe("How long this call waits (default 90)"),
       strip_audio: stripAudioField,
+      save_to: saveToField,
     },
   },
   async ({ project_id, media_ids, since, timeout_seconds, strip_audio }, extra) => {
@@ -511,6 +553,7 @@ server.registerTool(
       project_id: z.string().uuid(),
       media_ids: z.array(z.string().uuid()).min(1).max(30),
       strip_audio: stripAudioField,
+      save_to: saveToField,
     },
     annotations: { readOnlyHint: true },
   },
@@ -564,6 +607,12 @@ server.registerTool(
       attachments: attachments.describe("Other local files, without a stated role; prefer the role fields above. Uploaded once per project"),
       media_ids: mediaIds,
       characters: characterRefs,
+      wait: z
+        .boolean()
+        .optional()
+        .describe("Wait for the render and return the finished video in this call (renders take 1-5 minutes; some clients time out). Default false: returns once started, then flow_wait"),
+      wait_timeout_seconds: z.number().int().min(30).max(1800).optional().describe("With wait: how long to wait for the render (default 600)"),
+      save_to: saveToField,
       max_credits: z
         .number()
         .int()
@@ -587,6 +636,8 @@ server.registerTool(
       ingredients: a.ingredients,
       sourceVideo: a.source_video,
       maxCredits: a.max_credits,
+      waitForRender: a.wait,
+      renderTimeoutMs: a.wait_timeout_seconds ? a.wait_timeout_seconds * 1000 : undefined,
       onProgress: progressReporter(extra),
       ...projectChoice(a),
     });
@@ -688,6 +739,32 @@ server.registerTool(
     ),
 );
 
+server.registerTool(
+  "flow_job",
+  {
+    title: "What a flow-mcp job is doing, or why it stopped",
+    description:
+      "Every image, video, download, upscale and join call is a job with steps (what happened and when), a state " +
+      "(running, rendering, done, needs_user, failed) and, when it stopped, a reason code and a fix. Pass job_id from " +
+      "a result (also given with errors) to see one job; omit it to list recent jobs and the credits approved today. " +
+      "Use it after an interrupted or failed call to find out what happened before trying anything again. Free.",
+    inputSchema: {
+      job_id: z.string().min(1).optional(),
+      limit: z.number().int().min(1).max(50).optional().describe("Recent jobs to list (default 10)"),
+    },
+    annotations: { readOnlyHint: true },
+  },
+  async ({ job_id, limit }) => {
+    if (job_id) {
+      const job = getJob(job_id);
+      if (!job) throw new Error(`No job ${job_id}. List recent jobs with flow_job and no job_id.`);
+      return json(job);
+    }
+    const jobs = listJobs(limit ?? 10).map(({ steps, ...j }) => ({ ...j, lastStep: steps.at(-1)?.text, steps: steps.length }));
+    return json({ creditsApprovedToday: creditsToday(), jobs });
+  },
+);
+
 server.registerPrompt(
   "flow_director",
   {
@@ -724,6 +801,8 @@ for (const file of skillFiles()) {
 /** Serves MCP over stdio. Nothing else may write to stdout while it runs. */
 export async function startServer(): Promise<void> {
   await server.connect(new StdioServerTransport());
+  startBanner();
+  installFailureProbe();
 }
 
 // Started directly (e.g. `tsx src/server.ts`) rather than through the CLI's `serve`.

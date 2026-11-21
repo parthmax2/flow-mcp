@@ -93,6 +93,17 @@ consistent across shots, swap characters into footage and restyle video.
 - **Other clients:** use the server's `flow_director` prompt; its reference files are
   `flow://flow-director/...` resources.
 
+## Status line
+
+In Claude Code, the status bar can show what flow-mcp is doing (`flow-mcp · 🎬 Rendering 62% · 10 credits today`).
+Add this to `~/.claude/settings.json`:
+
+```json
+"statusLine": { "type": "command", "command": "npx -y @parthmax/flow-mcp statusline" }
+```
+
+From a clone, `node <path>/dist/cli.js statusline` starts faster.
+
 ## Run from source
 
 ```bash

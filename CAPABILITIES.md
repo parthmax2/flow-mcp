@@ -27,8 +27,11 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Talk to the Flow agent turn by turn | `flow_chat` | free | free | Returns the agent's exact reply, optional thinking, pending approvals. |
 | Approve / reject a spend request | `flow_approve` | the quoted credits | free | Never picks 'Always approve'; rejects above max_credits. |
 | Read a project's conversation | `flow_transcript` | free | free |  |
-| Default aspect, count and model for images and videos (per project) | `flow_settings` | free | free | Flow's default image count is 2; set 1 to avoid doubles. |
-| Standing agent instructions (up to 3, per project) | `flow_settings` | free | free |  |
+| Default aspect, count and model for images and videos (per project) | `flow_settings` | free | free | Flow's default image count is 2; set 1 to avoid doubles. Changes save as clicked (November 2026 layout: Image defaults / Video defaults views). |
+| Standing agent instructions, Flow's "Memory" (up to 3, per project) | `flow_settings` | free | free | Called Agent instructions before November 2026. |
+| Live progress while a call runs, and a timeline of the steps in every result | `all work tools (progress, jobId)` | free | free | Step lines (uploading, prompt sent, quote, saved...) as MCP progress; a Flow-window banner; Claude Code status line via `flow-mcp statusline`. |
+| Job status: what a call did, or why it stopped, with a reason code and a fix | `flow_job` | free | free | Failed jobs keep a screenshot of the Flow window and name a blocking pop-up. |
+| Credit guard: per-call budget plus a server-wide cap | `generate_video / flow_approve (max_credits, FLOW_MAX_CREDITS_PER_CALL)` | free | free | Rejects quotes over budget; reports an approval made outside the server and an expired quote. |
 | Approval mode (ask before spending credits) | `flow_settings` | free | free | Only 'always' can be set; chats and videos refuse to run on 'never'. |
 
 ## Images
@@ -39,7 +42,8 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Batch: several images in parallel tabs (about 3x faster) | `generate_images` | free | free | Up to 3 tabs, each in its own agent session. |
 | Edit images with an instruction | `generate_image (attachments / media_ids)` | free | free |  |
 | Combine several images / faces into one | `generate_image (attachments / media_ids)` | free | free |  |
-| Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. media_ids upscales several in one call. |
+| Images shown in the chat result | `generate_image / generate_images / flow_wait / flow_download` | free | free | Up to four finished images (each under 1.5 MB) as image content; FLOW_RETURN_IMAGES=0 turns it off. |
+| Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. media_ids upscales several in one call. Flow only opens the newest version of an edited image; allow_local makes a labelled 2x local copy instead. |
 | Upscale to 4K | `flow_upscale` | plan feature | paid (higher tiers) | Shown as locked on a free account. |
 | Crop | not yet (Flow website only) | free | free |  |
 
@@ -48,11 +52,11 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
 | Text to video, Veo 3.1 Lite (8 s) | `generate_video / flow_chat` | 10 credits | free | Free tier: 8 s only for Lite. |
-| Text to video, Veo 3.1 Fast / Quality | `generate_video (model)` | more credits (quoted by Flow) | free | Not tested yet. |
+| Text to video, Veo 3.1 Fast / Quality | `generate_video (model)` | more credits (quoted by Flow) | free | Not tested yet. Flow's model list marks both "Leaving Dec 5" (November 2026). |
 | Image to video: start / end frame, ingredients (references) | `generate_video (start_frame, end_frame, ingredients)` | quoted by Flow | free | Roles are numbered and explained to the agent. Start frame tested (Veo 3.1 Lite I2V, 10 credits). Veo takes frames or ingredients, not both. |
-| Video-to-video edit, Omni 1.1 Flash | `generate_video (source_video)` | 20 credits at 720p | free | Output keeps the source clip's length. |
+| Video-to-video edit, Omni Flash | `generate_video (source_video)` | 20 credits at 720p (Omni 1.1, October 2026) | free | Output keeps the source clip's length. Omni 1.2 Flash is the new default; 1.1 leaves Dec 5 2026; 1.2 cost not measured. |
 | Still frame of a video (first, last, at a time), e.g. to start the next shot on | `flow_frame` | free | free | Decoded locally in Chrome; Flow's own Save frame is not used. |
-| Download at full quality (mp4) | `flow_wait / flow_download / generate_video` | free | free | 1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting. |
+| Download at full quality (mp4) | `flow_wait / flow_download / generate_video` | free | free | 1280x720 for Veo 3.1 Lite. flow_download fetches by id without waiting. Files are saved at once with readable names in <project>/raw/ (or save_to). |
 | Remove the sound from downloaded videos | `flow_wait / flow_download (strip_audio)` | free | free | Veo adds sound even when asked for silence; stripped locally with ffmpeg. |
 | Join clips into one video, with an optional music or voice-over track and fades | `flow_assemble` | free | free | Runs on this machine with ffmpeg; Flow's Scenebuilder timeline is not used. |
 | Upscale video (1080p / 4K) | not yet (Flow website only) | unknown | paid | Not verified on this account yet. |
@@ -61,6 +65,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
+| Files saved at once with readable names, in a raw/ folder or one you choose | `all download tools (save_to)` | free | free | <output>/<project>/raw/<prompt-slug>-<id8>.<ext>; upscales in upscaled/. The path is in the result and the progress line. |
 | Watermark: Gemini mark on images, "Veo" mark on videos (bottom right) | not yet (Flow website only) | free | free | On every output on a free account; flow-mcp does not remove it. |
 | List a project's media (ids, uploaded/generated, references) | `flow_assets` | free | free |  |
 | Upload local images/videos once per project and reuse | `attachments on creating tools` | free | free | Matched by content hash; rights notice confirmed on the user's behalf. |

@@ -1,10 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { config, projectOutputDir } from "../config.js";
+import { step } from "../jobs.js";
+import { control, dismissPopups } from "./adapter.js";
+import { config } from "../config.js";
+import { mediaFileName, rawDir } from "../storage.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
-import { parseBatchExecute, type FlowMedia } from "./batchexecute.js";
+import { fullImageUrl, IMAGE_PREVIEW, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
 import { setProjectTitle, startNewSession } from "./projects.js";
 
 /*
@@ -12,8 +15,6 @@ import { setProjectTitle, startNewSession } from "./projects.js";
  * own auth and verification exactly as when a person uses it.
  */
 
-const PROMPT_BOX = { role: "textbox", name: "What do you want to create?" } as const;
-const SEND_BUTTON = 'button[aria-label="Start generation"]';
 const CREDITS_RPC = "nzlxg";
 
 let queue: Promise<unknown> = Promise.resolve();
@@ -39,6 +40,29 @@ export interface ProjectChoice {
   newSession?: boolean;
 }
 
+/*
+ * A project id from another Google account (after switching accounts in the Flow window) sends
+ * Flow to its 404 page, where every later step would just time out on missing buttons.
+ */
+export class ProjectNotFoundError extends Error {
+  constructor(projectId: string, email?: string) {
+    super(
+      `Project ${projectId} is not in the Google account signed in to Flow${email ? ` (${email})` : ""}. It may belong to another ` +
+        "account: sign that one in again, or start a new project with new_project_title.",
+    );
+    this.name = "ProjectNotFoundError";
+  }
+}
+
+async function assertProjectFound(page: Page, projectId: string): Promise<void> {
+  // Flow redirects client-side, about a second after the page loads, so the URL alone proves
+  // nothing yet: wait for the redirect or for the project's own prompt box, whichever comes first.
+  await Promise.any([page.waitForURL(/\/404/, { timeout: 10_000 }), control(page, "promptBox").waitFor({ state: "visible", timeout: 10_000 })]).catch(() => {});
+  if (!new URL(page.url()).pathname.startsWith("/404")) return;
+  const { signedInEmail } = await import("./account.js");
+  throw new ProjectNotFoundError(projectId, await signedInEmail(page).catch(() => undefined));
+}
+
 export async function openProject(page: Page, choice: ProjectChoice): Promise<string> {
   const flow = new URL(config.flowUrl).origin;
   let projectId = choice.projectId;
@@ -47,9 +71,13 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
     if (new URL(page.url()).pathname !== `/project/${projectId}`) {
       await page.goto(`${flow}/project/${projectId}`, { waitUntil: "domcontentloaded" });
     }
+    await assertProjectFound(page, projectId);
+    await page.waitForTimeout(1_000);
     touchProject(projectId);
   } else if (choice.newProject || choice.newProjectTitle) {
     if (new URL(page.url()).pathname !== "/") await page.goto(flow, { waitUntil: "domcontentloaded" });
+    await page.waitForTimeout(1_500);
+    await dismissPopups(page);
     await page.getByRole("button", { name: /new project/i }).click({ timeout: 30_000 });
     await page.waitForURL(/\/project\/[0-9a-f-]{36}/, { timeout: 30_000 });
     projectId = projectIdOf(page.url())!;
@@ -63,6 +91,7 @@ export async function openProject(page: Page, choice: ProjectChoice): Promise<st
     }
     touchProject(projectId);
   }
+  await dismissPopups(page);
   if (choice.newSession) await startNewSession(page);
   return projectId;
 }
@@ -75,7 +104,7 @@ export async function clearPrompt(page: Page): Promise<void> {
   await page.keyboard.press("Escape");
   // Right after a load the prompt box (and its clear button) is not drawn yet; checking then
   // would leave attachments from an earlier, failed request in place to be sent again.
-  await page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name }).waitFor({ timeout: 30_000 }).catch(() => {});
+  await control(page, "promptBox").waitFor({ timeout: 30_000 }).catch(() => {});
   await page.waitForTimeout(500);
   const clear = page.getByRole("button", { name: "Clear prompt" });
   if (await clear.isVisible().catch(() => false)) {
@@ -90,7 +119,7 @@ export async function clearPrompt(page: Page): Promise<void> {
  * a request that never answers.
  */
 export async function sendPrompt(page: Page, text: string): Promise<void> {
-  const box = page.getByRole(PROMPT_BOX.role, { name: PROMPT_BOX.name });
+  const box = control(page, "promptBox");
   const boxText = async () => (await box.innerText().catch(() => "")).trim();
   for (let attempt = 1; attempt <= 2; attempt++) {
     await box.click({ timeout: 30_000 });
@@ -99,7 +128,7 @@ export async function sendPrompt(page: Page, text: string): Promise<void> {
       await page.waitForTimeout(300);
     }
     if (!(await boxText())) throw new Error("Flow's prompt box would not take the text. Check the Flow window, then try again.");
-    await page.locator(SEND_BUTTON).click({ timeout: 10_000 });
+    await control(page, "sendButton").click({ timeout: 10_000 });
     for (let i = 0; i < 20; i++) {
       if (!(await boxText())) return;
       await page.waitForTimeout(500);
@@ -129,7 +158,10 @@ export async function waitForAgentTurn(page: Page, timeoutMs = 300_000): Promise
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!(await stop.isVisible().catch(() => false))) return;
-    if ((await approval.count().catch(() => 0)) > 0) return;
+    if ((await approval.count().catch(() => 0)) > 0) {
+      step("Flow is waiting for a spend approval", { icon: "💳" });
+      return;
+    }
     await page.waitForTimeout(500);
   }
   throw new Error(`The Flow agent did not finish its reply within ${Math.round(timeoutMs / 1000)} s. Check the Flow window, or flow_transcript.`);
@@ -150,7 +182,10 @@ export async function readCredits(page: Page): Promise<number | undefined> {
 }
 
 export interface DownloadedMedia extends FlowMedia {
+  /** Absolute path of the saved file, e.g. .../raw/red-paper-boat-on-a-calm-pond-ad25fe57.jpg */
   file: string;
+  /** The file's name, readable: the prompt or caption plus the short id. */
+  name: string;
 }
 
 const EXT: Record<string, string> = {
@@ -168,12 +203,16 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
     try {
       // The tab's request context carries the signed-in cookies some media URLs require. Videos
       // can take longer than Playwright's default 30 s request limit on a slow connection.
-      const res = await page.context().request.get(m.url, { timeout: 180_000 });
+      const url = m.kind !== "video" && IMAGE_PREVIEW.test(m.url) ? fullImageUrl(m.url) : m.url;
+      const res = await page.context().request.get(url, { timeout: 180_000 });
       if (res.ok()) {
         const type = (res.headers()["content-type"] ?? "").split(";")[0];
-        const file = path.join(dir, `${m.id}.${EXT[type] ?? "bin"}`);
+        const name = mediaFileName(m, EXT[type] ?? "bin");
+        const file = path.join(dir, name);
         writeFileSync(file, await res.body());
-        return { ...m, file };
+        // The path is known the moment the file exists, in the progress line as well as the result.
+        step(`Saved ${name}`, { icon: "⬇️", detail: file });
+        return { ...m, file, name };
       }
       lastError = `HTTP ${res.status()}`;
       // A 4xx (expired or forbidden link) will not change on retry.
@@ -186,9 +225,9 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
   throw new Error(`Downloading ${m.id} failed (${lastError}). The media is still in the Flow project; flow_wait with its media id downloads it again.`);
 }
 
-/** Downloads the files at the same time into the project's folder; results keep the order of items. */
+/** Downloads the files at the same time into the project's raw/ folder (or the call's save_to); results keep the order of items. */
 export async function download(page: Page, projectId: string, items: FlowMedia[]): Promise<DownloadedMedia[]> {
-  const dir = projectOutputDir(projectId);
+  const dir = rawDir(projectId);
   mkdirSync(dir, { recursive: true });
   return Promise.all(items.map((m) => downloadOne(page, dir, m)));
 }

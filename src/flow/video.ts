@@ -10,9 +10,11 @@ import { serialize, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 
 export const VIDEO_MODELS = {
   "veo-3.1-lite": "Veo 3.1 - Lite",
+  // Flow's November 2026 model list marks Veo 3.1 Fast and Quality and Omni 1.1 Flash "Leaving Dec 5".
   "veo-3.1-fast": "Veo 3.1 - Fast",
   "veo-3.1-quality": "Veo 3.1 - Quality",
   "omni-1.1-flash": "Omni 1.1 Flash",
+  "omni-1.2-flash": "Omni 1.2 Flash",
 } as const;
 export type VideoModel = keyof typeof VIDEO_MODELS;
 

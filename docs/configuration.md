@@ -5,11 +5,13 @@ flow-mcp needs no configuration after `setup`. These environment variables chang
 | Variable | Default | Purpose |
 |---|---|---|
 | `FLOW_HOME` | `~/.flow-mcp` | State folder: Chrome profile, registry, downloads, captures |
-| `FLOW_OUTPUT_DIR` | `$FLOW_HOME/output` | Where downloaded media is saved, in one folder per project |
+| `FLOW_OUTPUT_DIR` | `$FLOW_HOME/output` | Where downloaded media is saved: `<project id>/raw/` for originals and `<project id>/upscaled/` for upscales. A call's `save_to` overrides it |
 | `FLOW_CDP_PORT` | `9222` | Local port of the controlled Chrome window |
 | `FLOW_CHROME_PATH` | auto-detected | Chrome executable, if it is not found |
 | `FFMPEG_PATH` | `ffmpeg` on the PATH | The ffmpeg program `flow_assemble` uses to join clips |
 | `FLOW_MAX_CREDITS_PER_CALL` | none | The most credits any one approval may spend, whatever a call's `max_credits` says (e.g. `10` for Veo 3.1 Lite only) |
+| `FLOW_RETURN_IMAGES` | on | `0` returns image file paths only, without the images themselves in the result |
+| `FLOW_BANNER` | on | `0` hides the step banner flow-mcp shows at the top of the Flow window |
 | `FLOW_CONFIRM_RIGHTS` | setup choice | `1` or `0` to override whether uploads confirm Flow's rights notice |
 
 `FLOW_HOME` holds your signed-in Google session. Keep it private and out of version control.

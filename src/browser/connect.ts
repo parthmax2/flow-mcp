@@ -11,6 +11,11 @@ export async function getBrowser(): Promise<Browser> {
   return browser;
 }
 
+/** The current Chrome connection if there is one, without starting or connecting to Chrome. */
+export function getConnectedBrowser(): Browser | undefined {
+  return browser?.isConnected() ? browser : undefined;
+}
+
 const flowHost = () => new URL(config.flowUrl).host;
 
 const prepared = new WeakSet<Page>();

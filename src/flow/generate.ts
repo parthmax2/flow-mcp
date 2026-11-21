@@ -1,9 +1,10 @@
+import { healed, step } from "../jobs.js";
 import type { Page, Request } from "playwright-core";
 import { tapRpcs } from "../browser/rpc.js";
 import { getFlowPage, openFlowTab } from "../browser/connect.js";
 import { attachInputs, ensureUploaded, type AttachedInputs } from "./assets.js";
 import { attachCharacters } from "./characters.js";
-import { extractMedia, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
+import { extractMedia, parseBatchExecute, type FlowMedia, IMAGE_PREVIEW } from "./batchexecute.js";
 import { AGENT_QUOTA_HELP, AgentQuotaError, assertNoNewQuotaNotice, forgetQuotaIfOver, quotaNotices, readTranscript, type ChatMessage } from "./chat.js";
 import { clearPrompt, download, openProject, sendPrompt, serialize, type DownloadedMedia, type ProjectChoice } from "./ui.js";
 import { checkUploadable } from "./upload.js";
@@ -13,7 +14,9 @@ import { checkUploadable } from "./upload.js";
  * agent generates without asking; results are read from the page's RPC responses.
  */
 
-const STREAM_CHAT = /FlowCreationAgentService\/StreamChat/;
+// The chat stream's address; Flow moved it in November 2026 ("flowCreationAgent/streamCreationAgentChat/channel").
+// Only failures on it are read from the network: the end of the agent's turn comes from the panel.
+const STREAM_CHAT = /FlowCreationAgentService\/StreamChat|flowCreationAgent\/streamCreationAgentChat/;
 // bOKtO lists the media of the chat's own results; as29s carries full-size URLs of any media shown.
 const CHAT_MEDIA_RPC = "bOKtO";
 const MEDIA_RPCS = new Set([CHAT_MEDIA_RPC, "as29s"]);
@@ -50,7 +53,19 @@ export interface GenerateResult {
 }
 
 export function generate(options: GenerateOptions): Promise<GenerateResult> {
-  return serialize(async () => runGeneration(await getFlowPage(), options, false));
+  return serialize(async () => {
+    const page = await getFlowPage();
+    try {
+      return await runGeneration(page, options, false);
+    } catch (err) {
+      // Images are free, so an agent that finished without making one gets a second try in a fresh
+      // session (as the batch does). A policy message is not retried: the same words are refused again.
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/finished without producing media/.test(message) || /polic|violat|safety/i.test(message)) throw err;
+      healed("Flow's agent made no image; trying once more");
+      return runGeneration(page, { ...options, newSession: true }, false);
+    }
+  });
 }
 
 /**
@@ -98,7 +113,6 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
   const results = () => [...media.values()].filter((m) => !chatOnly || fromChat.has(m.id));
   const onChatEnd = (req: Request) => {
     if (!STREAM_CHAT.test(req.url())) return;
-    chatDoneAt ||= Date.now();
     const failure = req.failure()?.errorText;
     // Flow closes the stream itself when the agent finishes, which reports as an abort.
     if (failure && !/ABORTED/.test(failure)) chatError = failure;
@@ -107,19 +121,42 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
   page.on("requestfinished", onChatEnd);
   page.on("requestfailed", onChatEnd);
   try {
+    step("Sending the prompt to Flow's agent", { icon: "✍️" });
     await sendPrompt(page, options.prompt);
+    const sentAt = Date.now();
+    // The agent is working while its panel shows Stop; Stop disappearing is the end of its turn.
+    const stop = page.locator("flow-agent-panel").getByRole("button", { name: "Stop", exact: true });
+    let stopSeen = false;
     const deadline = Date.now() + timeoutMs;
     let reloaded = false;
+    let repliedLogged = false;
+    let madeLogged = false;
     while (Date.now() < deadline) {
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(250);
       if (chatError) throw new Error(`Flow agent request failed: ${chatError}`);
-      if (!chatDoneAt) continue;
+      // The call returns only after the agent's turn has ended (below). Returning as soon as the image
+      // existed saved about 2.5 s but left some images with a viewer that stays blank (2 of 6 in a controlled
+      // test, against 0 of 12 when waiting), so they could not be opened, edited or upscaled in Flow.
+      if (!chatDoneAt) {
+        if (await stop.isVisible().catch(() => false)) stopSeen = true;
+        else if (stopSeen || Date.now() - sentAt > 20_000) chatDoneAt = Date.now();
+        if (!chatDoneAt) continue;
+      }
+      if (!repliedLogged) {
+        repliedLogged = true;
+        step("Flow's agent replied", { icon: "💬" });
+      }
       const found = results();
+      if (found.length > 0 && !madeLogged) {
+        madeLogged = true;
+        step(`Flow made ${found.length} image${found.length === 1 ? "" : "s"}; fetching`, { icon: "🖼️" });
+      }
       if (found.length === 0) await assertNoNewQuotaNotice(page, quotaBefore);
       // Done as soon as every result has its full-size file and nothing changed for a moment;
       // otherwise give the full-size URLs up to settleMs after the agent finished.
-      const allFull = found.length > 0 && found.every((m) => FULL_IMAGE.test(m.url));
-      if (allFull && Date.now() - lastChangeAt > 1_500) break;
+      // A preview link is as good as a full-size one: fullImageUrl() turns it into the original when downloading.
+      const allFull = found.length > 0 && found.every((m) => FULL_IMAGE.test(m.url) || IMAGE_PREVIEW.test(m.url));
+      if (allFull && Date.now() - lastChangeAt > 600) break;
       if (found.length > 0 && Date.now() - chatDoneAt > settleMs) {
         // Some tabs (often the last of a batch) only ever get the small preview. Reloading makes
         // Flow fetch the project's media again, full-size links included, before giving up.

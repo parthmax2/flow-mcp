@@ -9,7 +9,7 @@ make an 8 second video of a paper boat, max 10 credits
 ```
 
 While it works, a Chrome window shows Flow doing the job. Leave that window open, and don't type in its
-Flow tab during a request. Downloads are saved to `~/.flow-mcp/output/<project_id>/` by default, one folder per project.
+Flow tab during a request. Files are saved the moment they exist, under readable names, in `~/.flow-mcp/output/<project_id>/raw/` (upscales in `upscaled/`). Every result gives each file's `file` (full path) and `name`, and the progress line shows the path. Pass `save_to` (a folder, e.g. a `raw` folder in your own project) to put the files of one call there instead.
 
 ## Credits
 
@@ -76,6 +76,21 @@ Clips are scaled to the first clip's size, and clips without sound get silence. 
 voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `generate_video` or
 `flow_chat` to use them, so the same character looks the same across shots.
 
+## Seeing what it does
+
+Every image, video, download, upscale and join call is a **job**:
+
+- **While it runs**, each step shows under the tool call in your chat ("📤 Uploading frame.png", "💳 Approved 10
+  credits", "🎬 Rendering 62%", "⬇️ Saved"), in clients that show MCP progress. A thin banner at the top of the
+  Flow window shows the same step (`FLOW_BANNER=0` turns it off).
+- **When it finishes**, the result carries `progress`, the list of steps, which your assistant shows you. Problems
+  the server fixed itself are marked 🔁; anything that needs you is marked 🛑 with a reason and a fix.
+- **Images appear in the chat:** results of image calls carry up to four finished images (each under 1.5 MB) as
+  image content, so chat clients show them in the conversation. `FLOW_RETURN_IMAGES=0` returns paths only.
+- **Afterwards**, `flow_job` tells your assistant what happened, even after an interrupted call.
+- **In Claude Code's status bar** (optional), `flow-mcp statusline` prints the current step and the credits approved
+  today. See [Getting started](getting-started.md#status-line).
+
 ## MCP tools
 
 | Tool | What it does | Cost |
@@ -88,13 +103,14 @@ voice (it also lists Flow's voices). Pass `characters` to `generate_image`, `gen
 | `flow_trash` | Moves media to Flow's trash: previews first, moves only with the confirmation code | free |
 | `generate_image` | Creates or edits images; attach files or project media to edit or combine | free |
 | `generate_images` | Several images at once in up to 3 parallel Flow tabs, about 3x faster | free |
-| `flow_upscale` | Downloads images at 2K (free) or 4K (paid plans), one or several (`media_ids`), or lists the sizes offered | free / plan |
+| `flow_upscale` | Downloads images at 2K (free) or 4K (paid plans), one or several (`media_ids`), or lists the sizes offered. Flow only opens the newest version of an edited image: an older one fails in about 20 s with the newer ids to use, or `allow_local` makes a labelled 2x copy on your computer | free / plan |
 | `flow_chat` | Sends one message to Flow's agent and returns its exact reply | free |
 | `flow_approve` | Approves or rejects the agent's spend request, within `max_credits` | quoted credits |
 | `flow_wait` | Waits for media to finish and downloads it; `strip_audio` removes the sound from videos | free |
+| `flow_job` | What a job is doing or why it stopped: steps, state, reason and fix; recent jobs and credits approved today | free |
 | `flow_download` | Downloads media already in a project by id, without waiting (use it when a finished video stays "pending") | free |
 | `flow_transcript` | Reads a project's agent conversation | free |
-| `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and agent instructions | free |
+| `flow_settings` | Reads or sets a project's defaults (image/video count, aspect, model) and its standing instructions (Flow's "Memory") | free |
 | `generate_video` | Starts a video within budget; inputs take a role (see above) | quoted credits |
 | `flow_frame` | Saves a video's first, last or timed frame as PNG | free |
 | `flow_assemble` | Joins clips into one mp4 on your computer, with optional music or voice-over and fades (needs ffmpeg) | free |

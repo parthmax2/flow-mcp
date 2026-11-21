@@ -214,6 +214,7 @@ Setup and serving:
       --confirm-rights | --no-confirm-rights   uploads confirm Flow's rights notice automatically, or not
   flow-mcp serve                       Run the MCP server (MCP clients start this themselves)
   flow-mcp skill                       Install the flow-director skill for Claude Code (setup does it too)
+  flow-mcp statusline                  One line on the latest job, for Claude Code's status bar
 
 Direct use (handy for testing):
   flow-mcp status | credits | projects
@@ -227,6 +228,12 @@ Direct use (handy for testing):
 
 State folder: ${FLOW_HOME} (set FLOW_HOME to change it)`;
 
+/** For Claude Code's statusLine setting: prints the latest flow-mcp job in one line. */
+async function statusline() {
+  const { statusLine } = await import("./jobs.js");
+  console.log(statusLine());
+}
+
 async function help() {
   console.log(HELP);
 }
@@ -237,6 +244,7 @@ const commands: Record<string, (...a: string[]) => Promise<void>> = {
   serve,
   skill,
   help,
+  statusline,
   "--help": help,
   "-h": help,
   "--version": async () => console.log(VERSION),

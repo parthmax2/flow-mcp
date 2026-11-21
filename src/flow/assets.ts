@@ -1,5 +1,6 @@
 import path from "node:path";
 import type { Page } from "playwright-core";
+import { healed, step } from "../jobs.js";
 import { callRpc } from "../browser/rpc.js";
 import { uploadRightsConfirmed } from "../state/preferences.js";
 import { forgetUpload, getProject, hashFile, recordUpload, uniqueName } from "../state/registry.js";
@@ -201,7 +202,10 @@ export async function ensureUploaded(page: Page, projectId: string, files: strin
   });
 
   const rights = uploadRightsConfirmed(confirmRights);
-  for (const e of missing) await uploadFile(page, e.abs, e.flowName, rights);
+  for (const e of missing) {
+    step(`Uploading ${path.basename(e.abs)}`, { icon: "📤" });
+    await uploadFile(page, e.abs, e.flowName, rights);
+  }
   if (missing.length) {
     // Uploads (videos especially) take a moment to be listed.
     for (let i = 0; i < 12; i++) {
@@ -253,13 +257,16 @@ export async function attachMedia(page: Page, mediaIds: string[], assets: Asset[
     const asset = assets.find((a) => a.id === id);
     if (!asset) throw new Error(`Media ${id} is not in this project; list it with flow_assets.`);
     const open = () => page.getByRole("button", { name: "Add ingredients to the prompt box" }).click({ timeout: 30_000 });
+    step(`Attaching ${asset.title.slice(0, 60)}`, { icon: "📎" });
     await open();
     // The picker sometimes misses an item on the first pass (a slow load, a stale tab);
     // reopening it once gives it a fresh list before giving up.
     await pickAsset(page, asset).catch(async () => {
+      step(`Picker missed ${asset.title.slice(0, 50)}`, { icon: "⚠️", kind: "heal", detail: "reopening the picker" });
       await page.waitForTimeout(1_000);
       await open();
       await pickAsset(page, asset);
+      healed("Reopened the picker and attached it");
     });
     // Picking an image attaches it at once and closes the picker (its confirm button can still
     // be visible mid-animation). Picking a video opens a trim preview that needs the confirm.

@@ -53,6 +53,18 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const FULL_VIDEO = /^https:\/\/flow-content\.google\/video\//;
 const FULL_IMAGE = /^https:\/\/flow-content\.google\/image\//;
 const PREVIEW = /^https:\/\/lh3\.googleusercontent\.com\//;
+/** Generated images are listed with a small preview link on this host (512 px wide). */
+export const IMAGE_PREVIEW = /^https:\/\/lh3\.googleusercontent\.com\/asb\//;
+
+/**
+ * The original-size link for an image's preview link: Google image links take a size
+ * suffix, and "=s0" asks for the original (1376x768 for a 16:9 Nano Banana image, against
+ * 512x286 for the preview). Found in November 2026, when Flow stopped listing full-size
+ * flow-content links for images.
+ */
+export function fullImageUrl(previewUrl: string): string {
+  return `${previewUrl.replace(/=[\w-]+$/, "")}=s0`;
+}
 
 /** Which URL to keep for a media id: a video file beats a full image (which for a video is
  *  only its thumbnail), which beats an lh3 preview. */

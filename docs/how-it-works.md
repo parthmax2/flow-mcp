@@ -26,6 +26,9 @@ Nothing runs on a server and there is no API key. Your requests go to Google Flo
 | `src/cli.ts` | Command line: `setup`, `serve`, `status` and the terminal versions of the tools |
 | `src/browser/` | Starting and connecting to Chrome, reading Flow's responses over DevTools |
 | `src/flow/` | One module per Flow feature: chat, generate, video, upload, upscale, characters, ... |
+| `src/flow/adapter.ts` | The Flow site adapter: every control the tool clicks (with alternatives for old and new layouts), how pop-ups are handled, and the failure probe that names a blocker and keeps a screenshot |
+| `src/jobs.ts`, `src/tracked.ts` | Jobs: each work call's steps, state, reason and fix, saved under `data/jobs/` and read with `flow_job` |
+| `src/banner.ts` | The step banner at the top of the Flow window |
 | `src/state/` | Local registry of projects and uploads, and user preferences |
 | `src/capabilities.ts` | Source of [CAPABILITIES.md](../CAPABILITIES.md) |
 | `skills/flow-director/` | The flow-director skill and its reference files |

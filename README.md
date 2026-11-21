@@ -55,7 +55,7 @@ edit my photo C:\photos\me.jpg into a winter scene
 make an 8 second video of a paper boat, max 10 credits
 ```
 
-A Chrome window shows Flow doing the job; leave it open. Files are saved to `~/.flow-mcp/output/<project_id>/`. If
+A Chrome window shows Flow doing the job; leave it open. Files are saved at once to `~/.flow-mcp/output/<project_id>/raw/` with readable names (`red-paper-boat-on-a-pond-ad25fe57.jpg`); the path is in the result. If
 something fails, `npx -y @parthmax/flow-mcp status` names the problem and the fix.
 
 ## Made with flow-mcp
@@ -83,7 +83,7 @@ references.
 
 ## How it fits together
 
-- The **MCP server** (`flow-mcp serve`) runs on your computer and gives your assistant [20 Flow tools](docs/usage.md#mcp-tools):
+- The **MCP server** (`flow-mcp serve`) runs on your computer and gives your assistant [21 Flow tools](docs/usage.md#mcp-tools):
   images, videos, upscaling, characters, projects, credits and Flow's agent chat.
 - A **Chrome window** with its own profile stays signed in to your Google account. flow-mcp drives Flow's
   own page there, so Flow handles sign-in and verification as it does for you.
