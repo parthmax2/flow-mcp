@@ -83,6 +83,29 @@ interface Feature {
 }
 const features: Feature[] = [];
 
+const OFFLINE = /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION_|fetch failed|ENOTFOUND/i;
+
+/** True when flow.google.com answers. */
+async function online(): Promise<boolean> {
+  try {
+    const res = await fetch("https://flow.google.com/", { method: "HEAD", signal: AbortSignal.timeout(8_000) });
+    return res.status < 500;
+  } catch {
+    return false;
+  }
+}
+
+/** Waits (up to 10 minutes) for the connection to come back, so a short outage does not fail a whole tool. */
+async function waitOnline(): Promise<boolean> {
+  if (await online()) return true;
+  process.stdout.write(" [offline: waiting] ");
+  for (let i = 0; i < 60; i++) {
+    await new Promise((r) => setTimeout(r, 10_000));
+    if (await online()) return true;
+  }
+  return false;
+}
+
 /** Runs one feature N times; `once` returns a Sample's extras. A daily-limit error stops the feature. */
 async function bench(name: string, tool: string, runs: number, once: (n: number) => Promise<{ lag?: number; note?: string } | void>, note?: string): Promise<void> {
   if (ONLY && !ONLY.includes(tool) && !ONLY.includes(name)) return;
@@ -90,9 +113,18 @@ async function bench(name: string, tool: string, runs: number, once: (n: number)
   features.push(f);
   process.stdout.write(`\n${name} (${runs}×) `);
   for (let n = 1; n <= runs; n++) {
+    await waitOnline();
     const t0 = Date.now();
     try {
-      const extra = await once(n);
+      let extra: void | { lag?: number; note?: string };
+      try {
+        extra = await once(n);
+      } catch (first) {
+        // A dropped connection fails the call before anything is made, so it is safe to try once more
+        // when it is back; a paid video is never retried.
+        if (tool === "generate_video" || !OFFLINE.test(String(first)) || !(await waitOnline())) throw first;
+        extra = await once(n);
+      }
       f.samples.push({ ok: true, seconds: (Date.now() - t0) / 1000, ...(extra || {}) });
       process.stdout.write(".");
     } catch (err) {
