@@ -18,6 +18,7 @@ npm run build          # compile src/ to dist/
 npm run capabilities   # regenerate CAPABILITIES.md from src/capabilities.ts
 npm run e2e            # end-to-end against a real signed-in Flow account (free actions only)
 npm run e2e:settings   # live test of agent settings and Memory on its own project (free; restores what it changes)
+npm run e2e:tools      # live test of batch images, download, upscale, frames, joining clips, jobs (free; no video)
 npm run latency        # timing of image requests by phase, e.g. -- --runs 20 (free; one image per run)
 ```
 

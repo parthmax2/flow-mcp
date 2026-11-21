@@ -70,7 +70,8 @@
     "e2e": "tsx scripts/e2e.ts",
     "prepublishOnly": "npm run typecheck && npm test && npm run build",
     "e2e:settings": "tsx scripts/e2e-settings.ts",
-    "latency": "tsx scripts/latency.ts"
+    "latency": "tsx scripts/latency.ts",
+    "e2e:tools": "tsx scripts/e2e-tools.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.1",

@@ -54,9 +54,9 @@ export class ProjectNotFoundError extends Error {
 }
 
 async function assertProjectFound(page: Page, projectId: string): Promise<void> {
-  // Flow redirects client-side, a moment after the page loads.
-  await page.waitForURL(/\/404|\/project\//, { timeout: 5_000 }).catch(() => {});
-  await page.waitForTimeout(800);
+  // Flow redirects client-side, about a second after the page loads, so the URL alone proves
+  // nothing yet: wait for the redirect or for the project's own prompt box, whichever comes first.
+  await Promise.any([page.waitForURL(/\/404/, { timeout: 10_000 }), control(page, "promptBox").waitFor({ state: "visible", timeout: 10_000 })]).catch(() => {});
   if (!new URL(page.url()).pathname.startsWith("/404")) return;
   const { signedInEmail } = await import("./account.js");
   throw new ProjectNotFoundError(projectId, await signedInEmail(page).catch(() => undefined));
