@@ -29,6 +29,9 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Read a project's conversation | `flow_transcript` | free | free |  |
 | Default aspect, count and model for images and videos (per project) | `flow_settings` | free | free | Flow's default image count is 2; set 1 to avoid doubles. Changes save as clicked (November 2026 layout: Image defaults / Video defaults views). |
 | Standing agent instructions, Flow's "Memory" (up to 3, per project) | `flow_settings` | free | free | Called Agent instructions before November 2026. |
+| Live progress while a call runs, and a timeline of the steps in every result | `all work tools (progress, jobId)` | free | free | Step lines (uploading, prompt sent, quote, saved...) as MCP progress; a Flow-window banner; Claude Code status line via `flow-mcp statusline`. |
+| Job status: what a call did, or why it stopped, with a reason code and a fix | `flow_job` | free | free | Failed jobs keep a screenshot of the Flow window and name a blocking pop-up. |
+| Credit guard: per-call budget plus a server-wide cap | `generate_video / flow_approve (max_credits, FLOW_MAX_CREDITS_PER_CALL)` | free | free | Rejects quotes over budget; reports an approval made outside the server and an expired quote. |
 | Approval mode (ask before spending credits) | `flow_settings` | free | free | Only 'always' can be set; chats and videos refuse to run on 'never'. |
 
 ## Images
@@ -39,6 +42,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 | Batch: several images in parallel tabs (about 3x faster) | `generate_images` | free | free | Up to 3 tabs, each in its own agent session. |
 | Edit images with an instruction | `generate_image (attachments / media_ids)` | free | free |  |
 | Combine several images / faces into one | `generate_image (attachments / media_ids)` | free | free |  |
+| Images shown in the chat result | `generate_image / generate_images / flow_wait / flow_download` | free | free | Up to four finished images (each under 1.5 MB) as image content; FLOW_RETURN_IMAGES=0 turns it off. |
 | Upscale to 2K | `flow_upscale` | free | free | 1376x768 becomes 2752x1536. media_ids upscales several in one call. Flow only opens the newest version of an edited image; allow_local makes a labelled 2x local copy instead. |
 | Upscale to 4K | `flow_upscale` | plan feature | paid (higher tiers) | Shown as locked on a free account. |
 | Crop | not yet (Flow website only) | free | free |  |
@@ -61,6 +65,7 @@ What Google Flow offers and what this MCP server can do with it. Generated from 
 
 | Feature | MCP tool | Cost | Plan | Notes |
 |---|---|---|---|---|
+| Files saved at once with readable names, in a raw/ folder or one you choose | `all download tools (save_to)` | free | free | <output>/<project>/raw/<prompt-slug>-<id8>.<ext>; upscales in upscaled/. The path is in the result and the progress line. |
 | Watermark: Gemini mark on images, "Veo" mark on videos (bottom right) | not yet (Flow website only) | free | free | On every output on a free account; flow-mcp does not remove it. |
 | List a project's media (ids, uploaded/generated, references) | `flow_assets` | free | free |  |
 | Upload local images/videos once per project and reuse | `attachments on creating tools` | free | free | Matched by content hash; rights notice confirmed on the user's behalf. |
