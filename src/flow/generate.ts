@@ -25,6 +25,12 @@ const FULL_IMAGE = /^https:\/\/flow-content\.google\/image\//;
 export const CLOCK_SKEW_S = 15;
 
 export interface GenerateOptions extends ProjectChoice {
+  /**
+   * How many images were asked for. Once that many exist the call returns at once, without
+   * waiting for the agent's turn to end (a few seconds later). Without it, the end of the
+   * turn decides, because the agent may still be making more.
+   */
+  expected?: number;
   prompt: string;
   /** Local images to attach, e.g. a photo to edit (uploaded once per project, then reused). */
   images?: string[];
@@ -120,8 +126,15 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
     let repliedLogged = false;
     let madeLogged = false;
     while (Date.now() < deadline) {
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(250);
       if (chatError) throw new Error(`Flow agent request failed: ${chatError}`);
+      if (options.expected && !chatDoneAt) {
+        const early = results();
+        if (early.length >= options.expected && early.every((m) => FULL_IMAGE.test(m.url) || IMAGE_PREVIEW.test(m.url)) && Date.now() - lastChangeAt > 300) {
+          step(`Flow made ${early.length} image${early.length === 1 ? "" : "s"}; fetching`, { icon: "🖼️" });
+          break;
+        }
+      }
       if (!chatDoneAt) {
         if (await stop.isVisible().catch(() => false)) stopSeen = true;
         else if (stopSeen || Date.now() - sentAt > 20_000) chatDoneAt = Date.now();
@@ -141,7 +154,7 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
       // otherwise give the full-size URLs up to settleMs after the agent finished.
       // A preview link is as good as a full-size one: fullImageUrl() turns it into the original when downloading.
       const allFull = found.length > 0 && found.every((m) => FULL_IMAGE.test(m.url) || IMAGE_PREVIEW.test(m.url));
-      if (allFull && Date.now() - lastChangeAt > 1_500) break;
+      if (allFull && Date.now() - lastChangeAt > 600) break;
       if (found.length > 0 && Date.now() - chatDoneAt > settleMs) {
         // Some tabs (often the last of a batch) only ever get the small preview. Reloading makes
         // Flow fetch the project's media again, full-size links included, before giving up.
@@ -182,6 +195,8 @@ export interface BatchJob {
   images?: string[];
   mediaIds?: string[];
   characters?: string[];
+  /** How many images this job asks for (see GenerateOptions.expected). */
+  expected?: number;
 }
 
 export type BatchResult = { index: number; prompt: string } & ({ ok: true; result: GenerateResult } | { ok: false; error: string });
@@ -218,7 +233,7 @@ export function generateBatch(
         // Images are free, so a job that came back empty gets one more try in a fresh session.
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
-            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, characters: job.characters, projectId, newSession: true }, true);
+            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, characters: job.characters, projectId, newSession: true, expected: job.expected }, true);
             results[index] = { index, prompt: job.prompt, ok: true, result };
             break;
           } catch (err) {

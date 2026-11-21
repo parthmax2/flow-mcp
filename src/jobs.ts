@@ -198,6 +198,7 @@ export async function runJob<T>(tool: string, title: string, work: () => Promise
  */
 const CAUSES: { test: RegExp; reason: string; fix: string; needsUser?: boolean }[] = [
   { test: /pop-up .* covers the page/i, reason: "flow_popup", fix: "Flow is showing a pop-up that covers the page. Close it in the Flow window (scroll to the end and click Get started), then try again.", needsUser: true },
+  { test: /viewer did not open image/i, reason: "viewer_unavailable", fix: "Flow only opens the newest version of an edited image. Use the newer id in the message, pass allow_local for a labelled 2x copy made on this computer, or flow_download for the original file." },
   { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
   { test: /locator\.(click|fill)|Timeout \d+ms exceeded.*(click|waiting for)/i, reason: "control_not_clickable", fix: "A Flow control could not be used: a dialog may be open, or the page is not what was expected. Look at the Flow window, or run flow_status." },
   { test: /agent quota|daily agent limit/i, reason: "agent_quota", fix: "Flow's daily agent limit is reached. Wait until tomorrow or switch Google accounts (see flow_status).", needsUser: true },

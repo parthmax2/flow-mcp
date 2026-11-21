@@ -128,7 +128,7 @@ export function buildArgs(clips: { file: string; info: ClipInfo }[], options: As
   return args;
 }
 
-function runFfmpeg(bin: string, args: string[]): Promise<void> {
+export function runFfmpeg(bin: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(bin, args, { stdio: ["ignore", "ignore", "pipe"] });
     let tail = "";

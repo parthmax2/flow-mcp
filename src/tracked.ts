@@ -1,6 +1,7 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { withSaveFolder } from "./storage.js";
 import { getJob, runJob, type Job, type Notify, type Outcome } from "./jobs.js";
 
 /*
@@ -150,7 +151,7 @@ export function trackTools(server: McpServer): void {
         const { result, job } = await runJob(
           name,
           titleOf(name, input),
-          () => handler(...args),
+          () => (typeof input.save_to === "string" && input.save_to ? withSaveFolder(input.save_to, () => handler(...args)) : handler(...args)),
           (res) => {
             try {
               const c = res.content[0];

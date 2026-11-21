@@ -16,7 +16,9 @@ import { assemble, stripAudio } from "./assemble.js";
 import { createCharacter, listCharacters, listVoices, updateCharacter } from "./flow/characters.js";
 import { directorGuide, readSkillFile, RESOURCE_PREFIX, skillFiles } from "./director.js";
 import { findDuplicateUploads, previewTrash, trashMedia } from "./flow/trash.js";
-import { downloadOptions, SIZES, upscale, type Size } from "./flow/upscale.js";
+import { downloadOptions, SIZES, upscale, ViewerUnavailableError, type Size } from "./flow/upscale.js";
+import { localUpscale } from "./localUpscale.js";
+import { findSavedMedia } from "./storage.js";
 import { generateVideo, VIDEO_MODELS, type VideoModel } from "./flow/video.js";
 import { CAPABILITIES } from "./capabilities.js";
 import { VERSION } from "./version.js";
@@ -62,6 +64,12 @@ trackTools(server);
 const json = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value, null, 2) }] });
 
 /** Follow-ups Flow offers for new media, so the connected AI can propose them to the user. */
+const saveToField = z
+  .string()
+  .min(1)
+  .optional()
+  .describe("A folder on this computer to save the files in, e.g. a \"raw\" folder in the user's project. Default: output/<project id>/raw. Created if missing");
+
 const stripAudioField = z
   .boolean()
   .optional()
@@ -287,6 +295,7 @@ server.registerTool(
     inputSchema: {
       prompt: z.string().min(1).describe("What to create or change"),
       count: imageCount,
+      save_to: saveToField,
       ...projectFields,
       attachments,
       confirm_rights: confirmRights,
@@ -295,7 +304,7 @@ server.registerTool(
     },
   },
   async (a) => {
-    const result = await generate({ prompt: withCount(a.prompt, a.count), images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
+    const result = await generate({ prompt: withCount(a.prompt, a.count), expected: a.count, images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
     return json({ ...result, nextSteps: nextSteps(result.projectId, result.files) });
   },
 );
@@ -323,13 +332,14 @@ server.registerTool(
         .max(12),
       count: imageCount.describe("Images per job, for every job without its own count (default: the project's setting, 2 unless changed)"),
       parallel: z.number().int().min(1).max(3).optional().describe("Tabs at once (default 3)"),
+      save_to: saveToField,
       ...projectFields,
       confirm_rights: confirmRights,
     },
   },
   async (a, extra) => {
     const results = await generateBatch(
-      a.jobs.map((j) => ({ prompt: withCount(j.prompt, j.count ?? a.count), images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
+      a.jobs.map((j) => ({ prompt: withCount(j.prompt, j.count ?? a.count), expected: j.count ?? a.count, images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
       { ...projectChoice(a), parallel: a.parallel, confirmRights: a.confirm_rights, onProgress: progressReporter(extra) },
     );
     return json({
@@ -337,6 +347,19 @@ server.registerTool(
     });
   },
 );
+
+/** Upscales through Flow; for an image Flow's viewer will not open, optionally makes a labelled local 2x copy. */
+async function upscaleOne(page: Awaited<ReturnType<typeof getFlowPage>>, projectId: string, id: string, size: Size, report: ((message: string) => void) | undefined, allowLocal: boolean) {
+  try {
+    return await upscale(page, projectId, id, size, report);
+  } catch (err) {
+    if (!(err instanceof ViewerUnavailableError) || !allowLocal) throw err;
+    report?.("Flow's viewer will not open this image; making a 2x copy on this computer");
+    const raw = findSavedMedia(projectId, id) ?? (await downloadMedia(projectId, [id])).files[0]?.file;
+    if (!raw) throw err;
+    return localUpscale(projectId, id, raw);
+  }
+}
 
 server.registerTool(
   "flow_upscale",
@@ -352,22 +375,28 @@ server.registerTool(
       media_id: z.string().uuid().optional(),
       media_ids: z.array(z.string().uuid()).min(1).max(20).optional().describe("Several media to upscale to the same size"),
       size: z.enum(Object.keys(SIZES) as [Size, ...Size[]]).optional().describe("1k (original), 2k or 4k; omit to list the options"),
+      allow_local: z
+        .boolean()
+        .optional()
+        .describe("If Flow's viewer will not open an image (an older version of an edited image), make a 2x copy on this computer instead: plain resampling, not Flow's upscaler"),
+      save_to: saveToField,
     },
   },
-  async ({ project_id, media_id, media_ids, size }, extra) =>
+  async ({ project_id, media_id, media_ids, size, allow_local }, extra) =>
     json(
       await serialize(async () => {
         const page = await getFlowPage();
         const ids = [...(media_id ? [media_id] : []), ...(media_ids ?? [])];
         if (ids.length === 0) throw new Error("Give media_id or media_ids.");
         if (!size) return { options: await downloadOptions(page, project_id, ids[0]) };
-        if (ids.length === 1) return upscale(page, project_id, ids[0], size, progressReporter(extra));
+        const one = (id: string, report?: (message: string) => void) => upscaleOne(page, project_id, id, size, report, !!allow_local);
+        if (ids.length === 1) return one(ids[0], progressReporter(extra));
         const report = progressReporter(extra);
         const results = [];
         for (const [i, id] of ids.entries()) {
           report(`upscaling ${i + 1} of ${ids.length}`);
           try {
-            results.push({ ok: true, ...(await upscale(page, project_id, id, size, report)) });
+            results.push({ ok: true, ...(await one(id, report)) });
           } catch (err) {
             results.push({ ok: false, mediaId: id, error: err instanceof Error ? err.message.split("\n")[0] : String(err) });
           }
@@ -493,6 +522,7 @@ server.registerTool(
       since: z.number().optional().describe("Epoch seconds; media created after it"),
       timeout_seconds: z.number().int().min(10).max(600).optional().describe("How long this call waits (default 90)"),
       strip_audio: stripAudioField,
+      save_to: saveToField,
     },
   },
   async ({ project_id, media_ids, since, timeout_seconds, strip_audio }, extra) => {
@@ -523,6 +553,7 @@ server.registerTool(
       project_id: z.string().uuid(),
       media_ids: z.array(z.string().uuid()).min(1).max(30),
       strip_audio: stripAudioField,
+      save_to: saveToField,
     },
     annotations: { readOnlyHint: true },
   },
@@ -576,6 +607,12 @@ server.registerTool(
       attachments: attachments.describe("Other local files, without a stated role; prefer the role fields above. Uploaded once per project"),
       media_ids: mediaIds,
       characters: characterRefs,
+      wait: z
+        .boolean()
+        .optional()
+        .describe("Wait for the render and return the finished video in this call (renders take 1-5 minutes; some clients time out). Default false: returns once started, then flow_wait"),
+      wait_timeout_seconds: z.number().int().min(30).max(1800).optional().describe("With wait: how long to wait for the render (default 600)"),
+      save_to: saveToField,
       max_credits: z
         .number()
         .int()
@@ -599,6 +636,8 @@ server.registerTool(
       ingredients: a.ingredients,
       sourceVideo: a.source_video,
       maxCredits: a.max_credits,
+      waitForRender: a.wait,
+      renderTimeoutMs: a.wait_timeout_seconds ? a.wait_timeout_seconds * 1000 : undefined,
       onProgress: progressReporter(extra),
       ...projectChoice(a),
     });

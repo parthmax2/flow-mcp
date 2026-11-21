@@ -3,7 +3,8 @@ import path from "node:path";
 import type { Page } from "playwright-core";
 import { step } from "../jobs.js";
 import { control, dismissPopups } from "./adapter.js";
-import { config, projectOutputDir } from "../config.js";
+import { config } from "../config.js";
+import { mediaFileName, rawDir } from "../storage.js";
 import { callRpc } from "../browser/rpc.js";
 import { recordProject, touchProject } from "../state/registry.js";
 import { fullImageUrl, IMAGE_PREVIEW, parseBatchExecute, type FlowMedia } from "./batchexecute.js";
@@ -181,7 +182,10 @@ export async function readCredits(page: Page): Promise<number | undefined> {
 }
 
 export interface DownloadedMedia extends FlowMedia {
+  /** Absolute path of the saved file, e.g. .../raw/red-paper-boat-on-a-calm-pond-ad25fe57.jpg */
   file: string;
+  /** The file's name, readable: the prompt or caption plus the short id. */
+  name: string;
 }
 
 const EXT: Record<string, string> = {
@@ -203,10 +207,12 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
       const res = await page.context().request.get(url, { timeout: 180_000 });
       if (res.ok()) {
         const type = (res.headers()["content-type"] ?? "").split(";")[0];
-        const file = path.join(dir, `${m.id}.${EXT[type] ?? "bin"}`);
+        const name = mediaFileName(m, EXT[type] ?? "bin");
+        const file = path.join(dir, name);
         writeFileSync(file, await res.body());
-        step(`Saved ${path.basename(file)}`, { icon: "⬇️" });
-        return { ...m, file };
+        // The path is known the moment the file exists, in the progress line as well as the result.
+        step(`Saved ${name}`, { icon: "⬇️", detail: file });
+        return { ...m, file, name };
       }
       lastError = `HTTP ${res.status()}`;
       // A 4xx (expired or forbidden link) will not change on retry.
@@ -219,9 +225,9 @@ async function downloadOne(page: Page, dir: string, m: FlowMedia): Promise<Downl
   throw new Error(`Downloading ${m.id} failed (${lastError}). The media is still in the Flow project; flow_wait with its media id downloads it again.`);
 }
 
-/** Downloads the files at the same time into the project's folder; results keep the order of items. */
+/** Downloads the files at the same time into the project's raw/ folder (or the call's save_to); results keep the order of items. */
 export async function download(page: Page, projectId: string, items: FlowMedia[]): Promise<DownloadedMedia[]> {
-  const dir = projectOutputDir(projectId);
+  const dir = rawDir(projectId);
   mkdirSync(dir, { recursive: true });
   return Promise.all(items.map((m) => downloadOne(page, dir, m)));
 }

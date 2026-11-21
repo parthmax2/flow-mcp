@@ -1,7 +1,10 @@
-import { mkdirSync, readdirSync, renameSync, statSync } from "node:fs";
+import { mkdirSync, renameSync, statSync } from "node:fs";
 import path from "node:path";
 import type { Page } from "playwright-core";
-import { config, projectOutputDir } from "../config.js";
+import { config } from "../config.js";
+import { step } from "../jobs.js";
+import { findSavedMedia, upscaledDir } from "../storage.js";
+import { listAssets } from "./assets.js";
 import { touchProject } from "../state/registry.js";
 
 /*
@@ -20,12 +23,66 @@ export interface DownloadOption {
   available: boolean;
 }
 
+/*
+ * Flow's viewer only opens an image's newest version: an image that was edited (used as the
+ * source of an edit) opens as a blank page whose Download button stays disabled. That used to
+ * show up as a 60 s timeout; now it is named at once, with the newer versions to use instead.
+ */
+export class ViewerUnavailableError extends Error {
+  constructor(
+    readonly mediaId: string,
+    readonly newer: string[],
+  ) {
+    super(
+      `Flow's viewer did not open image ${mediaId}. ` +
+        (newer.length
+          ? `It was edited and Flow only opens the newest version: use ${newer.join(" or ")} instead. `
+          : "It is usually an older version of an edited image, or one Flow has not finished saving. ") +
+        "Or pass allow_local to make a 2x copy on this computer (plain resampling, not Flow's upscaler); flow_download still gives the original file.",
+    );
+    this.name = "ViewerUnavailableError";
+  }
+}
+
+/**
+ * The images made from this one that Flow can still open: those no later edit was made from,
+ * newest first. (An edit of an edit leaves the middle version blank too.)
+ */
+export function latestVersions(assets: { id: string; kind: string; createdAt?: number; references?: string[] }[], mediaId: string): string[] {
+  // Everything made from this image, directly or through later edits.
+  const descendants = new Map<string, (typeof assets)[number]>();
+  const queue = [mediaId];
+  while (queue.length) {
+    const from = queue.shift()!;
+    for (const a of assets) {
+      if (a.kind === "image" && a.references?.includes(from) && !descendants.has(a.id) && a.id !== mediaId) {
+        descendants.set(a.id, a);
+        queue.push(a.id);
+      }
+    }
+  }
+  const edited = new Set(assets.flatMap((a) => a.references ?? []));
+  const newest = [...descendants.values()].filter((a) => !edited.has(a.id));
+  return (newest.length ? newest : [...descendants.values()])
+    .sort((x, y) => (y.createdAt ?? 0) - (x.createdAt ?? 0))
+    .slice(0, 3)
+    .map((a) => a.id);
+}
+
+async function newerVersions(page: Page, mediaId: string): Promise<string[]> {
+  return latestVersions(await listAssets(page), mediaId);
+}
+
 async function openViewer(page: Page, projectId: string, mediaId: string): Promise<void> {
   // The viewer is its own page, so going there directly saves loading the project first.
   touchProject(projectId);
   await page.goto(`${new URL(config.flowUrl).origin}/project/${projectId}/edit/${mediaId}`, { waitUntil: "domcontentloaded" });
-  // The download button stays disabled until the media has loaded.
-  await page.locator('button[aria-label="Download media"]:not([disabled])').waitFor({ timeout: 60_000 });
+  // The download button stays disabled until the media has loaded; a normal image takes about 3 s.
+  try {
+    await page.locator('button[aria-label="Download media"]:not([disabled])').waitFor({ timeout: 20_000 });
+  } catch {
+    throw new ViewerUnavailableError(mediaId, await newerVersions(page, mediaId).catch(() => []));
+  }
 }
 
 const menuItems = (page: Page) => page.locator(".cdk-overlay-container").locator("button, [role=menuitem]");
@@ -61,13 +118,8 @@ export interface UpscaleResult {
   size: string;
   file: string;
   bytes: number;
-}
-
-/** A file saved by an earlier upscale of the same media and size; Flow's result does not change. */
-function savedUpscale(dir: string, mediaId: string, size: Size): string | undefined {
-  const prefix = `${mediaId}-${size}.`;
-  const name = readdirSync(dir, { withFileTypes: true }).find((e) => e.isFile() && e.name.startsWith(prefix))?.name;
-  return name && path.join(dir, name);
+  /** "flow": Flow's own upscaler. "local": a plain 2x resample made on this computer (allow_local). */
+  method?: "flow" | "local";
 }
 
 /**
@@ -76,10 +128,11 @@ function savedUpscale(dir: string, mediaId: string, size: Size): string | undefi
  * reported every few seconds to tell the client the call is alive.
  */
 export async function upscale(page: Page, projectId: string, mediaId: string, size: Size, onProgress?: (message: string) => void): Promise<UpscaleResult> {
-  const dir = projectOutputDir(projectId);
+  const dir = upscaledDir(projectId);
   mkdirSync(dir, { recursive: true });
-  const saved = savedUpscale(dir, mediaId, size);
-  if (saved) return { mediaId, size: SIZES[size], file: saved, bytes: statSync(saved).size };
+  // An earlier upscale of the same media and size: Flow's result does not change, so it is reused.
+  const saved = findSavedMedia(projectId, mediaId, size);
+  if (saved) return { mediaId, size: SIZES[size], file: saved, bytes: statSync(saved).size, method: "flow" };
   onProgress?.("opening the media in Flow");
   await openViewer(page, projectId, mediaId);
   await page.getByRole("button", { name: "Download media" }).click();
@@ -97,9 +150,13 @@ export async function upscale(page: Page, projectId: string, mediaId: string, si
   const ticker = setInterval(() => onProgress?.(`Flow is upscaling to ${SIZES[size]} (${Math.round((Date.now() - startedAt) / 1000)} s)`), 5_000);
   const file = await download.finally(() => clearInterval(ticker));
   const ext = path.extname(file.suggestedFilename()) || ".bin";
-  const target = path.join(dir, `${mediaId}-${size}${ext}`);
+  // Named after the original's file when it is saved ("red-paper-boat-ad25fe57-2k.jpg"), else after the id.
+  const raw = findSavedMedia(projectId, mediaId);
+  const base = raw ? path.basename(raw, path.extname(raw)) : mediaId;
+  const target = path.join(dir, `${base}-${size}${ext}`);
   // Saved under a temporary name first, so a half-written file is never reused as finished.
   await file.saveAs(`${target}.part`);
   renameSync(`${target}.part`, target);
-  return { mediaId, size: SIZES[size], file: target, bytes: statSync(target).size };
+  step(`Saved ${path.basename(target)}`, { icon: "⬇️", detail: target });
+  return { mediaId, size: SIZES[size], file: target, bytes: statSync(target).size, method: "flow" };
 }

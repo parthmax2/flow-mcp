@@ -19,7 +19,9 @@ import { checkUploadable } from "./upload.js";
 
 // Flow stamps media with server time; allow for clock skew against this machine.
 const CLOCK_SKEW_S = 15;
-const POLL_MS = 20_000;
+/** How often the project's media list is asked for while waiting, and how often the page is reloaded as a safety net. */
+const FAST_POLL_MS = 3_000;
+const RELOAD_MS = 60_000;
 
 export interface MediaInfo {
   id: string;
@@ -268,9 +270,11 @@ export async function viewerUrl(page: Page, projectId: string, mediaId: string):
 }
 
 /** Fills in full-size URLs from the viewer for items that only have a preview. */
-async function resolveFromViewer(page: Page, projectId: string, items: FlowMedia[]): Promise<void> {
+async function resolveFromViewer(page: Page, projectId: string, items: FlowMedia[], deadline = Infinity): Promise<void> {
   for (const m of items) {
     if (isFullSize(m)) continue;
+    // Each look at a viewer page can take 10 s when the media is gone; never run past the caller's limit.
+    if (Date.now() > deadline) return;
     const url = await viewerUrl(page, projectId, m.id).catch(() => undefined);
     if (url) {
       healed("Found the file on the media's viewer page", `${m.id.slice(0, 8)}: the project page only had a preview`);
@@ -307,42 +311,66 @@ export async function waitForMedia(options: WaitOptions): Promise<WaitResult> {
   const projectUrl = `${new URL(config.flowUrl).origin}/project/${projectId}`;
   const refresh = async () => {
     await page.goto(projectUrl, { waitUntil: "domcontentloaded" });
-    await page.waitForTimeout(5_000);
+    await page.waitForTimeout(2_000);
     await addProjectMedia(page, projectId, watch.found);
   };
+  let onProject = true;
   try {
     await refresh();
     let failures: string[] = [];
+    let lastReload = Date.now();
+    let lastChat = 0;
+    let announced = false;
     while (true) {
       let items = tracked();
       const expected = wanted ? wanted.size : 1;
       if (items.length >= expected && items.every(isFullSize)) break;
-      // Listed but only as a preview: a finished video may still have its file URL only on its viewer page.
+      // Listed, but only with a preview: a finished video has its file URL on its viewer page. Flow lists
+      // a video only once it exists, so this is the moment the render is done: fetch the file at once.
       if (items.some((m) => !isFullSize(m))) {
-        await resolveFromViewer(page, projectId, items);
-        await page.goto(projectUrl, { waitUntil: "domcontentloaded" });
+        if (!announced) {
+          announced = true;
+          step("Flow lists the finished video; fetching its file", { icon: "🎬" });
+        }
+        await resolveFromViewer(page, projectId, items, deadline);
+        onProject = false;
         items = tracked();
         if (items.length >= expected && items.every(isFullSize)) break;
       }
-      // Failed media is never listed, so stop on the chat's error tile once nothing else is rendering.
-      failures = failuresSinceLastPrompt(await readTranscript(page).catch(() => []));
-      if (failures.length && items.every(isFullSize)) break;
       if (Date.now() >= deadline) break;
-      const percent = await renderPercent(page);
-      options.onProgress?.(
-        items.length ? `${items.filter(isFullSize).length}/${items.length} ready${percent !== undefined ? `, rendering ${percent}%` : ""}` : "waiting for Flow to list the media",
-        percent,
-      );
-      // A refresh cycle takes POLL_MS plus ~5 s; skip one that would end past the deadline.
-      if (deadline - Date.now() < POLL_MS + 5_000) break;
-      await page.waitForTimeout(POLL_MS);
-      await refresh();
+      // The chat shows failures and the render percentage, but only on the project page: look every 15 s.
+      if (Date.now() - lastChat > 15_000) {
+        if (!onProject) {
+          await page.goto(projectUrl, { waitUntil: "domcontentloaded" });
+          await page.waitForTimeout(1_500);
+          onProject = true;
+        }
+        lastChat = Date.now();
+        // Failed media is never listed, so stop on the chat's error tile once nothing else is rendering.
+        failures = failuresSinceLastPrompt(await readTranscript(page).catch(() => []));
+        if (failures.length && items.every(isFullSize)) break;
+        const percent = await renderPercent(page);
+        options.onProgress?.(
+          items.length ? `${items.filter(isFullSize).length}/${items.length} ready${percent !== undefined ? `, rendering ${percent}%` : ""}` : "waiting for Flow to list the media",
+          percent,
+        );
+      }
+      await page.waitForTimeout(FAST_POLL_MS);
+      if (Date.now() - lastReload > RELOAD_MS) {
+        await refresh();
+        onProject = true;
+        lastReload = Date.now();
+      } else {
+        // The media list is a plain request: asking every few seconds needs no page reload.
+        await addProjectMedia(page, projectId, watch.found);
+      }
     }
     const items = tracked();
     const ready = items.filter(isFullSize);
     const files = await download(page, projectId, ready);
     options.onProgress?.(`${files.length} file(s) downloaded`, 100);
-    const messages = (await readTranscript(page)).slice(before);
+    // The chat is only on the project page; after fetching from a viewer page it is skipped to return at once.
+    const messages = onProject ? (await readTranscript(page)).slice(before) : [];
     const pending = items.filter((m) => !isFullSize(m)).map(summary);
     const done = pending.length === 0 && items.length >= (wanted ? wanted.size : 1);
     const failed = failures.length > 0 && pending.length === 0;
