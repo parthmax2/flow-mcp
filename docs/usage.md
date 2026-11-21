@@ -9,7 +9,7 @@ make an 8 second video of a paper boat, max 10 credits
 ```
 
 While it works, a Chrome window shows Flow doing the job. Leave that window open, and don't type in its
-Flow tab during a request. Downloads are saved to `~/.flow-mcp/output/<project_id>/` by default, one folder per project.
+Flow tab during a request. Files are saved the moment they exist, under readable names, in `~/.flow-mcp/output/<project_id>/raw/` (upscales in `upscaled/`). Every result gives each file's `file` (full path) and `name`, and the progress line shows the path. Pass `save_to` (a folder, e.g. a `raw` folder in your own project) to put the files of one call there instead.
 
 ## Credits
 
@@ -103,7 +103,7 @@ Every image, video, download, upscale and join call is a **job**:
 | `flow_trash` | Moves media to Flow's trash: previews first, moves only with the confirmation code | free |
 | `generate_image` | Creates or edits images; attach files or project media to edit or combine | free |
 | `generate_images` | Several images at once in up to 3 parallel Flow tabs, about 3x faster | free |
-| `flow_upscale` | Downloads images at 2K (free) or 4K (paid plans), one or several (`media_ids`), or lists the sizes offered | free / plan |
+| `flow_upscale` | Downloads images at 2K (free) or 4K (paid plans), one or several (`media_ids`), or lists the sizes offered. Flow only opens the newest version of an edited image: an older one fails in about 20 s with the newer ids to use, or `allow_local` makes a labelled 2x copy on your computer | free / plan |
 | `flow_chat` | Sends one message to Flow's agent and returns its exact reply | free |
 | `flow_approve` | Approves or rejects the agent's spend request, within `max_credits` | quoted credits |
 | `flow_wait` | Waits for media to finish and downloads it; `strip_audio` removes the sound from videos | free |
