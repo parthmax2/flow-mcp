@@ -304,7 +304,7 @@ server.registerTool(
     },
   },
   async (a) => {
-    const result = await generate({ prompt: withCount(a.prompt, a.count), expected: a.count, images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
+    const result = await generate({ prompt: withCount(a.prompt, a.count), images: a.attachments, mediaIds: a.media_ids, characters: a.characters, confirmRights: a.confirm_rights, ...projectChoice(a) });
     return json({ ...result, nextSteps: nextSteps(result.projectId, result.files) });
   },
 );
@@ -339,7 +339,7 @@ server.registerTool(
   },
   async (a, extra) => {
     const results = await generateBatch(
-      a.jobs.map((j) => ({ prompt: withCount(j.prompt, j.count ?? a.count), expected: j.count ?? a.count, images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
+      a.jobs.map((j) => ({ prompt: withCount(j.prompt, j.count ?? a.count), images: j.attachments, mediaIds: j.media_ids, characters: j.characters })),
       { ...projectChoice(a), parallel: a.parallel, confirmRights: a.confirm_rights, onProgress: progressReporter(extra) },
     );
     return json({

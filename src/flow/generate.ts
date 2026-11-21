@@ -25,12 +25,6 @@ const FULL_IMAGE = /^https:\/\/flow-content\.google\/image\//;
 export const CLOCK_SKEW_S = 15;
 
 export interface GenerateOptions extends ProjectChoice {
-  /**
-   * How many images were asked for. Once that many exist the call returns at once, without
-   * waiting for the agent's turn to end (a few seconds later). Without it, the end of the
-   * turn decides, because the agent may still be making more.
-   */
-  expected?: number;
   prompt: string;
   /** Local images to attach, e.g. a photo to edit (uploaded once per project, then reused). */
   images?: string[];
@@ -128,13 +122,9 @@ async function runGeneration(page: Page, options: GenerateOptions, chatOnly: boo
     while (Date.now() < deadline) {
       await page.waitForTimeout(250);
       if (chatError) throw new Error(`Flow agent request failed: ${chatError}`);
-      if (options.expected && !chatDoneAt) {
-        const early = results();
-        if (early.length >= options.expected && early.every((m) => FULL_IMAGE.test(m.url) || IMAGE_PREVIEW.test(m.url)) && Date.now() - lastChangeAt > 300) {
-          step(`Flow made ${early.length} image${early.length === 1 ? "" : "s"}; fetching`, { icon: "🖼️" });
-          break;
-        }
-      }
+      // The call returns only after the agent's turn has ended (below). Returning as soon as the image
+      // existed saved about 2.5 s but left some images with a viewer that stays blank (2 of 6 in a controlled
+      // test, against 0 of 12 when waiting), so they could not be opened, edited or upscaled in Flow.
       if (!chatDoneAt) {
         if (await stop.isVisible().catch(() => false)) stopSeen = true;
         else if (stopSeen || Date.now() - sentAt > 20_000) chatDoneAt = Date.now();
@@ -195,8 +185,6 @@ export interface BatchJob {
   images?: string[];
   mediaIds?: string[];
   characters?: string[];
-  /** How many images this job asks for (see GenerateOptions.expected). */
-  expected?: number;
 }
 
 export type BatchResult = { index: number; prompt: string } & ({ ok: true; result: GenerateResult } | { ok: false; error: string });
@@ -233,7 +221,7 @@ export function generateBatch(
         // Images are free, so a job that came back empty gets one more try in a fresh session.
         for (let attempt = 1; attempt <= 2; attempt++) {
           try {
-            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, characters: job.characters, projectId, newSession: true, expected: job.expected }, true);
+            const result = await runGeneration(tab, { prompt: job.prompt, mediaIds, characters: job.characters, projectId, newSession: true }, true);
             results[index] = { index, prompt: job.prompt, ok: true, result };
             break;
           } catch (err) {
