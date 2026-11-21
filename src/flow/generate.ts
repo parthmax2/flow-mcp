@@ -1,4 +1,4 @@
-import { step } from "../jobs.js";
+import { healed, step } from "../jobs.js";
 import type { Page, Request } from "playwright-core";
 import { tapRpcs } from "../browser/rpc.js";
 import { getFlowPage, openFlowTab } from "../browser/connect.js";
@@ -53,7 +53,19 @@ export interface GenerateResult {
 }
 
 export function generate(options: GenerateOptions): Promise<GenerateResult> {
-  return serialize(async () => runGeneration(await getFlowPage(), options, false));
+  return serialize(async () => {
+    const page = await getFlowPage();
+    try {
+      return await runGeneration(page, options, false);
+    } catch (err) {
+      // Images are free, so an agent that finished without making one gets a second try in a fresh
+      // session (as the batch does). A policy message is not retried: the same words are refused again.
+      const message = err instanceof Error ? err.message : String(err);
+      if (!/finished without producing media/.test(message) || /polic|violat|safety/i.test(message)) throw err;
+      healed("Flow's agent made no image; trying once more");
+      return runGeneration(page, { ...options, newSession: true }, false);
+    }
+  });
 }
 
 /**

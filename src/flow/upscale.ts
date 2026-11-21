@@ -144,11 +144,17 @@ export async function upscale(page: Page, projectId: string, mediaId: string, si
     const offered = options.map((o) => `${o.size}${o.available ? "" : " (locked: needs a plan upgrade)"}`).join(", ");
     throw new Error(`${SIZES[size]} is not available for this media. Offered: ${offered || "none"}.`);
   }
-  const download = page.waitForEvent("download", { timeout: 300_000 });
+  // 2K arrives in about 15-20 s; 4K takes longer. A wait of five minutes only hid a stuck upscale.
+  const waitSeconds = size === "2k" ? 90 : 240;
+  const download = page.waitForEvent("download", { timeout: waitSeconds * 1000 });
   await menuItems(page).filter({ hasText: new RegExp(`^\\s*${SIZES[size]}\\b`) }).first().click();
   const startedAt = Date.now();
   const ticker = setInterval(() => onProgress?.(`Flow is upscaling to ${SIZES[size]} (${Math.round((Date.now() - startedAt) / 1000)} s)`), 5_000);
-  const file = await download.finally(() => clearInterval(ticker));
+  const file = await download
+    .catch(() => {
+      throw new Error(`Flow did not deliver the ${SIZES[size]} file within ${waitSeconds} s. It may still be upscaling: try again in a minute (nothing is charged for a free upscale).`);
+    })
+    .finally(() => clearInterval(ticker));
   const ext = path.extname(file.suggestedFilename()) || ".bin";
   // Named after the original's file when it is saved ("red-paper-boat-ad25fe57-2k.jpg"), else after the id.
   const raw = findSavedMedia(projectId, mediaId);

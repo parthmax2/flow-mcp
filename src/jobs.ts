@@ -197,7 +197,9 @@ export async function runJob<T>(tool: string, title: string, work: () => Promise
  * can act on and a fix in plain words. Order matters: the first match wins.
  */
 const CAUSES: { test: RegExp; reason: string; fix: string; needsUser?: boolean }[] = [
-  { test: /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION_(RESET|TIMED_OUT|CLOSED)|ERR_PROXY/i, reason: "offline", fix: "This computer has no working internet connection (Chrome reported a network error). Reconnect and try again; nothing was spent and nothing was retried.", needsUser: true },
+  { test: /ERR_INTERNET_DISCONNECTED|ERR_NETWORK_CHANGED|ERR_NAME_NOT_RESOLVED|ERR_CONNECTION_(RESET|TIMED_OUT|CLOSED)|ERR_PROXY|Failed to fetch|ENOTFOUND|getaddrinfo/i, reason: "offline", fix: "This computer has no working internet connection (Chrome reported a network error). Reconnect and try again; nothing was spent and nothing was retried.", needsUser: true },
+  { test: /did not deliver the .* file/i, reason: "upscale_slow", fix: "Flow did not hand over the upscaled file in time. Try again in a minute; a free upscale costs nothing." },
+  { test: /finished without producing media/i, reason: "agent_no_image", fix: "Flow's agent finished without making an image (it said so in the message). Try again, or rephrase if it mentions a policy." },
   { test: /pop-up .* covers the page/i, reason: "flow_popup", fix: "Flow is showing a pop-up that covers the page. Close it in the Flow window (scroll to the end and click Get started), then try again.", needsUser: true },
   { test: /viewer did not open image/i, reason: "viewer_unavailable", fix: "Flow only opens the newest version of an edited image. Use the newer id in the message, pass allow_local for a labelled 2x copy made on this computer, or flow_download for the original file." },
   { test: /is not in the Google account signed in/i, reason: "project_not_in_account", fix: "That project belongs to a different Google account than the one signed in to Flow. Sign that account in again, or start a new project.", needsUser: true },
